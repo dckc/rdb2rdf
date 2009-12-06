@@ -1,0 +1,11 @@
+syntax: glob
+.classpath
+.project
+.manager
+target
+lib_managed
+lift_example
+project/boot/
+*~
+*.class
+*.log
