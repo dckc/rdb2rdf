@@ -3,16 +3,9 @@ package w3c.sw
 import scala.util.parsing.combinator._
 import java.net.URI
 
-case class Arith() extends JavaTokenParsers {
-  def expr: Parser[Any] = term~rep("+"~term | "-"~term)
-  def term: Parser[Any] = factor~rep("*"~factor | "/"~factor)
-  def factor: Parser[Any] = floatingPointNumber | "("~expr~")"
-}
-
 object MyParsers extends RegexParsers {
 
-  val uri = """[a-zA-Z0-9:]+""".r
-  val varr = """\?[a-zA-Z0-9]+""".r
+  val uri = """[a-zA-Z0-9:/#\.]+""".r
 
 }
 
@@ -40,18 +33,46 @@ case class LitString(s:String) extends Lit
 
 case class Stem(s:String)
 case class Attr(s:String)
-case class Rel(s:Rel)
+case class Rel(s:String)
 
 case class Var(s:String)
 
 case class Sparql() extends JavaTokenParsers {
 
-  def triplepatterns = repsep(triplepattern, ".") 
-  def triplepattern = subject ~ predicate ~ objectt
-  def subject = uri | varr
-  def predicate = uri
-  def objectt = uri | varr | literal
-  def literal = stringLiteral
+  def triplepatterns:Parser[TriplePatterns] =
+    repsep(triplepattern, ".") ^^ { TriplePatterns(_) }
+
+  def triplepattern:Parser[TriplePattern] =
+    subject ~ predicate ~ objectt ^^ { case s~p~o => TriplePattern(s, p, o) }
+
+  def subject:Parser[S] = (
+      uri ^^ { x => SUri(new URI(x)) }
+    | varr ^^ { x => SVar(x) }
+  )
+
+  def predicate:Parser[P] =
+    "<"~uri~">" ^^ { case "<"~x~">" => Sparql.parsePredicateURI(x) }
+
+  def objectt:Parser[O] = (
+      uri ^^ { x => OUri(new URI(x)) }
+    | varr ^^ { x => OVar(x) }
+    | literal ^^ { x => OLit(x) }
+  )
+
+  def literal:Parser[Lit] = stringLiteral ^^ { x => null }
+
+  def varr:Parser[Var] = "?"~ident ^^ { case "?"~x => Var(x) }
 
 }
 
+object Sparql {
+
+  def parsePredicateURI(x:String):PUri = {
+    val uri = new URI(x)
+    val path = uri.getPath().split("/")
+    val subPath = path.toList.remove(_ == "").slice(0, path.size - 2).mkString("/")
+    val stem = uri.getScheme() + "://" + uri.getAuthority + "/" + subPath
+    PUri(Stem(stem), Rel(path.last), Attr(uri.getFragment))
+  }
+
+}

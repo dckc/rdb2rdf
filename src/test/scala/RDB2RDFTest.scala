@@ -1,24 +1,41 @@
 package w3c.sw
 
 import org.scalatest.FunSuite
+import java.net.URI
 
 class TestBank extends FunSuite {
 
-  test("parse arith") {
-    val a = Arith()
-    val e = "2 * (3 + 7)"
-    println(a.parseAll(a.expr, e))
-  }
-
-  test("parse sparql") {
+  test("parse a triplepatterns") {
     val a = Sparql()
     val e = """
-?emp      emplP:lastName   ?empName .
-?emp      emplP:manager    ?manager .
-?manager  emplP:lastName   ?managName
+?emp      <http://hr.example/DB/Employee#lastName>   ?empName .
+?emp      <http://hr.example/DB/Employee#manager>    ?manager .
+?manager  <http://hr.example/DB/Employee#lastName>   ?managName
 """
-    println(a.parseAll(a.triplepatterns, e))
+    val tps =
+      TriplePatterns(
+	List(
+	  TriplePattern(
+	    SVar(Var("emp")),
+	    PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")),
+	    OVar(Var("empName"))),
+	  TriplePattern(
+	    SVar(Var("emp")),
+	    PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("manager")),
+	    OVar(Var("manager"))),
+	  TriplePattern(
+	    SVar(Var("manager")),
+	    PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")),
+	    OVar(Var("managName")))))
+    assert(tps === a.parseAll(a.triplepatterns, e).get)
   }
 
+  test("decompose a predicate uri in stem, rel and attr") {
+    val uri = "http://hr.example/DB/Employee#lastName"
+    val puri:PUri = Sparql.parsePredicateURI(uri)
+    assert(puri === PUri(Stem("http://hr.example/DB"),
+			 Rel("Employee"),
+			 Attr("lastName")))
+  }
 
 }
