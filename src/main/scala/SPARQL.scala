@@ -5,11 +5,8 @@ import java.net.URI
 
 import MyParsers._
 
-// object SparqlTypeAliases {
-//   type TriplePatterns = List[TriplePattern]
-// }
-
-// import SpqrqlTypeAliases._
+case class SparqlSelect(attrs:SparqlAttributeList, triples:TriplePatterns)
+case class SparqlAttributeList(attributelist:List[Var])
 
 case class TriplePatterns(triplepatterns:List[TriplePattern])
 case class TriplePattern(s:S, p:P, o:O)
@@ -36,6 +33,12 @@ case class Rel(s:String)
 case class Var(s:String)
 
 case class Sparql() extends JavaTokenParsers {
+
+  def select:Parser[SparqlSelect] =
+    "SELECT" ~ attributelist ~ "{" ~ triplepatterns ~ "}" ^^ { case "SELECT"~a~"{"~t~"}" => SparqlSelect(a, t) }
+
+  def attributelist:Parser[SparqlAttributeList] =
+    rep(varr) ^^ { SparqlAttributeList(_) }
 
   def triplepatterns:Parser[TriplePatterns] =
     repsep(triplepattern, ".") ^^ { TriplePatterns(_) }
