@@ -2,7 +2,7 @@ package w3c.sw
 
 import java.net.URI
 
-case class RDFTriple()
+case class RDFTriple(s:RDFSubject, p:RDFPredicate, o:RDFObject)
 
 sealed abstract class RDFSubject()
 case class RDFSubjectUri(uri:URI) extends RDFSubject

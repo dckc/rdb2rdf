@@ -80,7 +80,7 @@ case class Sql() extends JavaTokenParsers {
   def rvalue:Parser[RValue] = (
       fqattribute ^^ { RValueAttr(_) }
     | """[0-9]+""".r ^^ { x => RValueInt(Name(x)) }
-    | "\"[^\"]*\"".r  ^^ { x => RValueString(Name(x)) }
+    | "\"[^\"]*\"".r  ^^ { x => RValueString(Name(x.substring(1, x.size - 1))) }
   )
 
 }

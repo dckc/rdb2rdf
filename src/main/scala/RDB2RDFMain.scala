@@ -11,18 +11,6 @@ object MyParsers extends RegexParsers {
 
 import MyParsers._
 
-// case class RDFTriple()
-
-// sealed abstract class RDFSubject()
-// case class RDFSubjectUri(uri:URI) extends RDFSubject
-// case class RDFSubjectBlankNode(debugName:String) extends RDFSubject
-
-// case class RDFPredicate(uri:URI)
-
-// sealed abstract class RDFObject()
-// case class RDFObjectUri(uri:URI) extends RDFObject
-// case class RDFObjectBlankNode(debugName:String) extends RDFObject
-// case class RDFLiteral(lexicalForm:Literal, datatype:URI)
 
 // case class RelationStemGraph(m:Map[String,String])
 // case class RelationMap(Map[(FQAttribute,Tuple),RDFTriple])
