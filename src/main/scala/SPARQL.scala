@@ -21,22 +21,13 @@ case class SVar(v:Var) extends S
 sealed abstract class O
 case class OUri(uri:URI) extends O
 case class OVar(v:Var) extends O
-case class OLit(lit:Lit) extends O
+case class OLit(lit:SparqlLiteral) extends O
 
 sealed abstract class P
 case class PUri(stem:Stem, rel:Rel, attr:Attr) extends P
 case class PVar(v:Var) extends P
 
-// sealed abstract class Lit
-// case class LitInt(i:Int) extends Lit
-// case class LitString(s:String) extends Lit
-case class Lit(lexicalForm:String, datatype:Datatype)
-case class Datatype(uri:URI)
-
-object Lit {
-  val StringDatatype = Datatype(new URI("http://www.w3.org/2001/XMLSchema#string"))
-  val IntegerDatatype = Datatype(new URI("http://www.w3.org/2001/XMLSchema#integer"))
-}
+case class SparqlLiteral(lit:RDFLiteral)
 
 case class Stem(s:String)
 case class Attr(s:String)
@@ -66,14 +57,11 @@ case class Sparql() extends JavaTokenParsers {
     | literal ^^ { x => OLit(x) }
   )
 
-// case class Lit(lexicalForm:String, datatype:Datatype)
-// case class Datatype(uri:URI)
-
-  def literal:Parser[Lit] = (
+  def literal:Parser[SparqlLiteral] = (
       stringLiteral~"^^<http://www.w3.org/2001/XMLSchema#string>" ^^
-      { case lit ~ _ => Lit(lit.substring(1,lit.size - 1), Lit.StringDatatype) }
+      { case lit ~ _ => SparqlLiteral(RDFLiteral(lit.substring(1,lit.size - 1), RDFLiteral.StringDatatype)) }
     | stringLiteral~"^^<http://www.w3.org/2001/XMLSchema#integer>" ^^
-      { case lit ~ _ => Lit(lit.substring(1,lit.size - 1), Lit.IntegerDatatype) }
+      { case lit ~ _ => SparqlLiteral(RDFLiteral(lit.substring(1,lit.size - 1), RDFLiteral.IntegerDatatype)) }
 )
 
   def varr:Parser[Var] = "?"~ident ^^ { case "?"~x => Var(x) }
