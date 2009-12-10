@@ -11,12 +11,61 @@ object MyParsers extends RegexParsers {
 
 import MyParsers._
 
-
 // case class RelationStemGraph(m:Map[String,String])
 // case class RelationMap(Map[(FQAttribute,Tuple),RDFTriple])
 
 // case class Tuple()
-// case class StemURI()
+case class StemURI(s:String)
+case class PrimaryKey(attr:Attribute)
 // case class NodeMap()
 // case class PredicateMap()
 // case class LiteralMap()
+
+/**
+ * Traverses nested BGP.
+ * VARconstraint(VAR, FQAttribute):
+    if bindings[VAR]) equivs.insert(FQAttribute= bindings[VAR]
+    bindings[VAR]= FQAttribute
+URIconstraint(URI) => Value:
+    (Rel, Attr, Value) = match(URI, stemURI + '/' (\w+) '/' (\w+) '.' (\w+) '#record')
+    some Alias = hash(Rel + URI)
+    pk = primary_key_attribute(Rel)
+    equivs.insert(Alias.pk= Value)
+    joins.insert(Rel AS Attr)
+    Value
+
+  * FK = Map(FQAttribute(Employee, manager) => FQAttribute(http://hr.example/DB/Employee, id))
+  * ?emp      <http://hr.example/DB/Employee#manager>    ?manager
+
+(rel, attr) = match(P, stemURI + '/' + (\w+) + '#' (\w+))
+  * rel => Employee  attr => manager
+some alias = hash(Rel + S)
+  * alias => "emp"
+pk = primary_key_attribute(Rel)
+  *-ignore, just use the paramater pk
+    match S with
+      VAR -> VARconstraint(S, Alias.pk)
+  * eqS = (bindings[s => Alias.pk])
+XXX   URI -> URIconstraint(S)
+    match O with
+      LITERAL -> equivs.insert(alias.attr= O)
+      VAR -> VARconstraint(O, Alias.Attr)
+      URI -> equivs.insert(Alias.Attr= URIconstraint(O))
+      *
+  * joins.insert(TableAlias(rel, alias)
+joins.insert(rel AS alias ON eqS)
+  * 
+ * */
+object RDB2RDF {
+  type R2RState = Set[Join], Map[Var, FQAttribute]
+
+  def acc(state:R2RState, triple):R2RState = ...
+
+  def apply (sparql:SparqlSelect, stem:StemURI, pk:PrimaryKey) : Select = {
+    val SparqlSelect(attrs, triples) = sparql
+
+    val initialSate:(Map[Var,FQAttribute], Set[Equiv]) = 
+
+
+  }
+}
