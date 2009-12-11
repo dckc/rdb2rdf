@@ -72,6 +72,7 @@ object RDB2RDF {
 	NamedAttribute(FQAttribute(Relation(Name("manager")),Attribute(Name("lastName"))),Attribute(Name("managName"))))), 
       // List[Join](), 
       List(
+	Join(TableAlias(Relation(Name("Employee")),Relation(Name("emp"))),None),
 	Join(TableAlias(Relation(Name("Employee")),Relation(Name("manager"))),
 	     Some(Expression(List(
 	       PrimaryExpressionEq(FQAttribute(Relation(Name("manager")),Attribute(Name("id"))),
@@ -86,30 +87,10 @@ object RDB2RDF {
       Map[Var, FQAttribute]()
     )
     triples.triplepatterns.foreach(s => r2rState = acc(r2rState, s))
-    val ret = Select(
+    Select(
       r2rState.project,
-      TableList(
-	TableAlias(Relation(Name("Employee")),Relation(Name("emp"))),
-	r2rState.joins
-      ),
+      TableList(r2rState.joins),
       Some(r2rState.exprs)
     )
-    ret
-//     val ret = Select(
-//       AttributeList(List(
-// 	NamedAttribute(FQAttribute(Relation(Name("emp")),Attribute(Name("lastName"))),Attribute(Name("empName"))), 
-// 	NamedAttribute(FQAttribute(Relation(Name("manager")),Attribute(Name("lastName"))),Attribute(Name("managName"))))),
-//       TableList((Relation(Name("Employee")),Relation(Name("emp"))),
-// //		r2rState.attrs
-// 		TableList(
-// 		  TableAlias(Relation(Name("Employee")),Relation(Name("emp"))),
-// 		  List(
-// 		    Join(TableAlias(Relation(Name("Employee")),Relation(Name("manager"))),
-// 			 Expression(
-// 			   List(PrimaryExpressionEq(FQAttribute(Relation(Name("manager")),Attribute(Name("id"))),
-// 						    RValueAttr(FQAttribute(Relation(Name("emp")),Attribute(Name("manager"))))))))))
-// 	      ),Some(Expression(List(PrimaryExpressionNotNull(FQAttribute(Relation(Name("emp")),Attribute(Name("lastName")))), PrimaryExpressionNotNull(FQAttribute(Relation(Name("manager")),Attribute(Name("lastName"))))))))
-//     ret
-
   }
 }

@@ -11,7 +11,7 @@ case class NamedAttribute(fqattribute:FQAttribute, attribute:Attribute)
 case class FQAttribute(relation:Relation, attribute:Attribute)
 case class Attribute(n:Name)
 case class Relation(n:Name)
-case class TableList(tablealias:TableAlias, joins:List[Join])
+case class TableList(joins:List[Join])
 case class Join(tablealias:TableAlias, expression:Option[Expression])
 case class TableAlias(rel:Relation, as:Relation)
 case class Expression(conjuncts:List[PrimaryExpression])
@@ -36,7 +36,7 @@ case class Sql() extends JavaTokenParsers {
     "WHERE" ~ expression ^^ { case "WHERE" ~ expression => expression }
 
   def attributelist:Parser[AttributeList] =
-    repsep(namedattribute, ",") ^^ { AttributeList(_)}
+    repsep(namedattribute, ",") ^^ { AttributeList(_) }
 
   def namedattribute:Parser[NamedAttribute] =
     fqattribute ~ "AS" ~ attribute ^^
@@ -54,11 +54,11 @@ case class Sql() extends JavaTokenParsers {
     """[a-zA-Z_]\w*""".r ^^ { x => Relation(Name(x)) }
 
   def tablelist:Parser[TableList] =
-    tablealias ~ rep("INNER" ~ "JOIN" ~ tablealias ~ opt(optexpr)) ^^
-    { case tablealias ~ repjoins =>
-        val joins:List[Join] = repjoins map { case "INNER"~"JOIN"~tablealias~optexpr => Join(tablealias, optexpr) }
-        TableList(tablealias, joins)
-    }
+    repsep(join, "INNER" ~ "JOIN") ^^ { TableList(_) }
+
+  def join:Parser[Join] =
+    tablealias ~ opt(optexpr) ^^
+    { case tablealias ~ optexpr => Join(tablealias, optexpr) }
 
   def optexpr:Parser[Expression] =
     "ON" ~ expression ^^ { case "ON"~expression => expression }
