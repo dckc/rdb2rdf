@@ -11,12 +11,16 @@ case class SparqlAttributeList(attributelist:List[Var])
 case class TriplePatterns(triplepatterns:List[TriplePattern])
 case class TriplePattern(s:S, p:P, o:O)
 
+case class ObjUri(stem:Stem, rel:Rel, attr:Attr, v:CellValue)
+
+case class CellValue(s:String)
+
 sealed abstract class S
-case class SUri(uri:URI) extends S
+case class SUri(obj:ObjUri) extends S
 case class SVar(v:Var) extends S
 
 sealed abstract class O
-case class OUri(uri:URI) extends O
+case class OUri(obj:ObjUri) extends O
 case class OVar(v:Var) extends O
 case class OLit(lit:SparqlLiteral) extends O
 
@@ -47,7 +51,7 @@ case class Sparql() extends JavaTokenParsers {
     subject ~ predicate ~ objectt ^^ { case s~p~o => TriplePattern(s, p, o) }
 
   def subject:Parser[S] = (
-      uri ^^ { x => SUri(new URI(x)) }
+      "<"~uri~">" ^^ { case "<"~x~">" => SUri(Sparql.parseObjectURI(x)) }
     | varr ^^ { x => SVar(x) }
   )
 
@@ -55,7 +59,7 @@ case class Sparql() extends JavaTokenParsers {
     "<"~uri~">" ^^ { case "<"~x~">" => Sparql.parsePredicateURI(x) }
 
   def objectt:Parser[O] = (
-      uri ^^ { x => OUri(new URI(x)) }
+      "<"~uri~">" ^^ { case "<"~x~">" => OUri(Sparql.parseObjectURI(x)) }
     | varr ^^ { x => OVar(x) }
     | literal ^^ { x => OLit(x) }
   )
@@ -73,12 +77,26 @@ case class Sparql() extends JavaTokenParsers {
 
 object Sparql {
 
+  /* stemURI + '/' + (\w+) + '#' (\w+) */
   def parsePredicateURI(x:String):PUri = {
     val uri = new URI(x)
-    val path = uri.getPath().split("/")
-    val subPath = path.toList.remove(_ == "").slice(0, path.size - 2).mkString("/")
+    val path = uri.getPath().split("/").toList.remove(_ == "")
+    val subPath = path.slice(0, path.size - 1).mkString("/")
     val stem = uri.getScheme() + "://" + uri.getAuthority + "/" + subPath
     PUri(Stem(stem), Rel(path.last), Attr(uri.getFragment))
+  }
+
+  /* stemURI + '/' (\w+) '/' (\w+) '.' (\w+) '#record' */
+  def parseObjectURI(x:String):ObjUri = {
+    val uri = new URI(x)
+    val path = uri.getPath().split("/").toList.remove(_ == "")
+    val subPath = path.slice(0, path.size - 2).mkString("/")
+    val rel = path(path.size - 2)
+    println("attrPair:" + path(path.size-1))
+    val attrPair = path(path.size-1).split("\\.")
+    val stem = uri.getScheme() + "://" + uri.getAuthority + "/" + subPath
+    assert("record" == uri.getFragment)
+    ObjUri(Stem(stem), Rel(rel), Attr(attrPair(0)), CellValue(attrPair(1)))
   }
 
 }

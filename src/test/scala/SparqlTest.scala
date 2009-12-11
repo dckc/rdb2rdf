@@ -78,11 +78,20 @@ SELECT ?empName ?manageName {
   }
 
   test("decompose a predicate uri in stem, rel and attr") {
-    val uri = "http://hr.example/DB/Employee#lastName"
+    val uri = "http://hr.example/our/favorite/DB/Employee#lastName"
     val puri:PUri = Sparql.parsePredicateURI(uri)
-    assert(puri === PUri(Stem("http://hr.example/DB"),
+    assert(puri === PUri(Stem("http://hr.example/our/favorite/DB"),
 			 Rel("Employee"),
 			 Attr("lastName")))
+  }
+
+  test("decompose a object uri in stem, rel and attr") {
+    val uri = "http://hr.example/our/favorite/DB/Employee/id.18#record"
+    val objuri:ObjUri = Sparql.parseObjectURI(uri)
+    assert(objuri === ObjUri(Stem("http://hr.example/our/favorite/DB"),
+			 Rel("Employee"),
+			 Attr("id"),
+			 CellValue("18")))
   }
 
 }
