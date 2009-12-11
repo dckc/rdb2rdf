@@ -57,7 +57,7 @@ joins.insert(rel AS alias ON eqS)
   * 
  * */
 object RDB2RDF {
-  case class R2RState(project:AttributeList, joins:List[Join], varmap:Map[Var, FQAttribute], exprs:Expression)
+  case class R2RState(project:AttributeList, joins:List[Join], exprs:Expression, varmap:Map[Var, FQAttribute])
 
   def acc(state:R2RState, triple:TriplePattern):R2RState = {
     state
@@ -69,7 +69,7 @@ object RDB2RDF {
       // AttributeList(List()), 
       AttributeList(List(
 	NamedAttribute(FQAttribute(Relation(Name("emp")),Attribute(Name("lastName"))),Attribute(Name("empName"))), 
-	NamedAttribute(FQAttribute(Relation(Name("manager")),Attribute(Name("lastName"))),Attribute(Name("managName"))))),
+	NamedAttribute(FQAttribute(Relation(Name("manager")),Attribute(Name("lastName"))),Attribute(Name("managName"))))), 
       // List[Join](), 
       List(
 	Join(TableAlias(Relation(Name("Employee")),Relation(Name("manager"))),
@@ -78,12 +78,12 @@ object RDB2RDF {
 				   RValueAttr(FQAttribute(Relation(Name("emp")),Attribute(Name("manager"))))))
 		      ))
       ), 
-      Map[Var, FQAttribute](), 
-      // Expression(List())
+      // Expression(List()), 
       Expression(List(
 	PrimaryExpressionNotNull(FQAttribute(Relation(Name("emp")),Attribute(Name("lastName")))), 
 	PrimaryExpressionNotNull(FQAttribute(Relation(Name("manager")),Attribute(Name("lastName"))))
-      ))
+      )), 
+      Map[Var, FQAttribute]()
     )
     triples.triplepatterns.foreach(s => r2rState = acc(r2rState, s))
     val ret = Select(
