@@ -73,10 +73,10 @@ object RDB2RDF {
       // List[Join](), 
       List(
 	Join(TableAlias(Relation(Name("Employee")),Relation(Name("manager"))),
-	     Expression(List(
+	     Some(Expression(List(
 	       PrimaryExpressionEq(FQAttribute(Relation(Name("manager")),Attribute(Name("id"))),
 				   RValueAttr(FQAttribute(Relation(Name("emp")),Attribute(Name("manager"))))))
-		      ))
+		      )))
       ), 
       // Expression(List()), 
       Expression(List(

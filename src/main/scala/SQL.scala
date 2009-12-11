@@ -12,7 +12,7 @@ case class FQAttribute(relation:Relation, attribute:Attribute)
 case class Attribute(n:Name)
 case class Relation(n:Name)
 case class TableList(tablealias:TableAlias, joins:List[Join])
-case class Join(tablealias:TableAlias, expression:Expression)
+case class Join(tablealias:TableAlias, expression:Option[Expression])
 case class TableAlias(rel:Relation, as:Relation)
 case class Expression(conjuncts:List[PrimaryExpression])
 sealed abstract class PrimaryExpression
@@ -54,11 +54,14 @@ case class Sql() extends JavaTokenParsers {
     """[a-zA-Z_]\w*""".r ^^ { x => Relation(Name(x)) }
 
   def tablelist:Parser[TableList] =
-    tablealias ~ rep("INNER" ~ "JOIN" ~ tablealias ~ "ON" ~ expression) ^^
+    tablealias ~ rep("INNER" ~ "JOIN" ~ tablealias ~ opt(optexpr)) ^^
     { case tablealias ~ repjoins =>
-        val joins:List[Join] = repjoins map { case "INNER"~"JOIN"~tablealias~"ON"~expression => Join(tablealias, expression) }
+        val joins:List[Join] = repjoins map { case "INNER"~"JOIN"~tablealias~optexpr => Join(tablealias, optexpr) }
         TableList(tablealias, joins)
     }
+
+  def optexpr:Parser[Expression] =
+    "ON" ~ expression ^^ { case "ON"~expression => expression }
 
   def tablealias:Parser[TableAlias] =
     relation ~ "AS" ~ relation ^^
