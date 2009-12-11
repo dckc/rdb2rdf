@@ -57,15 +57,59 @@ joins.insert(rel AS alias ON eqS)
   * 
  * */
 object RDB2RDF {
-  type R2RState = Set[Join], Map[Var, FQAttribute]
+  case class R2RState(project:AttributeList, joins:List[Join], varmap:Map[Var, FQAttribute], exprs:Expression)
 
-  def acc(state:R2RState, triple):R2RState = ...
+  def acc(state:R2RState, triple:TriplePattern):R2RState = {
+    state
+  }
 
   def apply (sparql:SparqlSelect, stem:StemURI, pk:PrimaryKey) : Select = {
     val SparqlSelect(attrs, triples) = sparql
-
-    val initialSate:(Map[Var,FQAttribute], Set[Equiv]) = 
-
+    var r2rState = R2RState(
+      // AttributeList(List()), 
+      AttributeList(List(
+	NamedAttribute(FQAttribute(Relation(Name("emp")),Attribute(Name("lastName"))),Attribute(Name("empName"))), 
+	NamedAttribute(FQAttribute(Relation(Name("manager")),Attribute(Name("lastName"))),Attribute(Name("managName"))))),
+      // List[Join](), 
+      List(
+	Join(TableAlias(Relation(Name("Employee")),Relation(Name("manager"))),
+	     Expression(List(
+	       PrimaryExpressionEq(FQAttribute(Relation(Name("manager")),Attribute(Name("id"))),
+				   RValueAttr(FQAttribute(Relation(Name("emp")),Attribute(Name("manager"))))))
+		      ))
+      ), 
+      Map[Var, FQAttribute](), 
+      // Expression(List())
+      Expression(List(
+	PrimaryExpressionNotNull(FQAttribute(Relation(Name("emp")),Attribute(Name("lastName")))), 
+	PrimaryExpressionNotNull(FQAttribute(Relation(Name("manager")),Attribute(Name("lastName"))))
+      ))
+    )
+    triples.triplepatterns.foreach(s => r2rState = acc(r2rState, s))
+    val ret = Select(
+      r2rState.project,
+      TableList(
+	TableAlias(Relation(Name("Employee")),Relation(Name("emp"))),
+	r2rState.joins
+      ),
+      Some(r2rState.exprs)
+    )
+    ret
+//     val ret = Select(
+//       AttributeList(List(
+// 	NamedAttribute(FQAttribute(Relation(Name("emp")),Attribute(Name("lastName"))),Attribute(Name("empName"))), 
+// 	NamedAttribute(FQAttribute(Relation(Name("manager")),Attribute(Name("lastName"))),Attribute(Name("managName"))))),
+//       TableList((Relation(Name("Employee")),Relation(Name("emp"))),
+// //		r2rState.attrs
+// 		TableList(
+// 		  TableAlias(Relation(Name("Employee")),Relation(Name("emp"))),
+// 		  List(
+// 		    Join(TableAlias(Relation(Name("Employee")),Relation(Name("manager"))),
+// 			 Expression(
+// 			   List(PrimaryExpressionEq(FQAttribute(Relation(Name("manager")),Attribute(Name("id"))),
+// 						    RValueAttr(FQAttribute(Relation(Name("emp")),Attribute(Name("manager"))))))))))
+// 	      ),Some(Expression(List(PrimaryExpressionNotNull(FQAttribute(Relation(Name("emp")),Attribute(Name("lastName")))), PrimaryExpressionNotNull(FQAttribute(Relation(Name("manager")),Attribute(Name("lastName"))))))))
+//     ret
 
   }
 }
