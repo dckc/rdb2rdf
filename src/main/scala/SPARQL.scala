@@ -92,7 +92,6 @@ object Sparql {
     val path = uri.getPath().split("/").toList.remove(_ == "")
     val subPath = path.slice(0, path.size - 2).mkString("/")
     val rel = path(path.size - 2)
-    println("attrPair:" + path(path.size-1))
     val attrPair = path(path.size-1).split("\\.")
     val stem = uri.getScheme() + "://" + uri.getAuthority + "/" + subPath
     assert("record" == uri.getFragment)

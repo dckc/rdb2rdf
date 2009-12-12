@@ -17,6 +17,13 @@ import MyParsers._
 // case class Tuple()
 case class StemURI(s:String)
 case class PrimaryKey(attr:Attribute)
+
+sealed abstract class Binding
+case class Node(fqattr:FQAttribute) extends Binding
+case class Str(fqattr:FQAttribute) extends Binding
+case class Int(fqattr:FQAttribute) extends Binding
+case class Enum(fqattr:FQAttribute) extends Binding
+
 // case class NodeMap()
 // case class PredicateMap()
 // case class LiteralMap()
@@ -59,7 +66,99 @@ joins.insert(rel AS alias ON eqS)
 object RDB2RDF {
   case class R2RState(project:AttributeList, joins:List[Join], exprs:Expression, varmap:Map[Var, FQAttribute])
 
-  def acc(state:R2RState, triple:TriplePattern):R2RState = {
+  def AliasFromS(s:S):Relation = {
+    s match {
+      case SUri(ob) => AliasFromNode(ob)
+      case SVar(v) => AliasFromVar(v)
+    }
+  }
+
+  def AliasFromO(o:O):Option[Relation] = {
+    o match {
+      case OUri(ob) => Some(AliasFromNode(ob))
+      case OVar(v) => Some(AliasFromVar(v))
+      case OLit(l) => None
+    }
+  }
+
+  def AliasFromNode(u:ObjUri):Relation = {
+    val ObjUri(stem, rel, Attr(a), CellValue(v)) = u
+    Relation(Name(a + v))
+  }
+
+  def AliasFromVar(vr:Var):Relation = {
+    val Var(v) = vr
+    Relation(Name("_" + v))
+  }
+
+  def URIconstraint(u:ObjUri, pk:PrimaryKey) = {
+    var alias = AliasFromNode(u)
+    val ObjUri(stem, rel, attr, value) = u
+    var fqattr = FQAttribute(alias, pk.attr)
+    println("equiv|=" + fqattr + "=" + value)
+  }
+
+  def VarConstraint(v:Var, attr:FQAttribute) = {
+    println("?" + v.s + "=> @@Binding(" + attr + ")")
+  }
+
+  def LiteralConstraint(lit:SparqlLiteral, attr:FQAttribute) = {
+    println("equiv|=" + attr + "=" + lit)
+  }
+
+  def getKeyTarget(from:FQAttribute) : Option[FQAttribute] = {
+    from match {
+      case FQAttribute(Relation(Name("Employee")), Attribute(Name("manager"))) =>{
+	println(from + " is an fk")
+	Some(FQAttribute(Relation(Name("Employee")), Attribute(Name("id"))))
+      }
+      case FQAttribute(Relation(Name("Employee")), Attribute(Name("lastName"))) => None
+    }
+  }
+
+  def toString(fqattr:FQAttribute) : String = {
+    fqattr.relation.n.s + "." + fqattr.attribute.n.s
+  }
+
+  def acc(state:R2RState, triple:TriplePattern, pk:PrimaryKey):R2RState = {
+    val R2RState(project, joins, exprs, varmap) = state
+    val TriplePattern(s, p, o) = triple
+    p match {
+      case PUri(stem, spRel, spAttr) => {
+	var rel = Relation(Name(spRel.s))
+	var attr = Attribute(Name(spAttr.s))
+	var alias = AliasFromS(s)
+	println(rel.n.s + " AS " + alias.n.s)
+	s match {
+	  case SUri(u) => URIconstraint(u, pk)
+	  case SVar(v) => VarConstraint(v, FQAttribute(alias, pk.attr))
+	  null
+	}
+	var objattr = FQAttribute(alias, attr)
+	var oAlias = AliasFromO(o) // None if OLit
+	var target = getKeyTarget(FQAttribute(rel, attr))
+	target match {
+	  case None => null
+	  case Some(fqattr) => {
+	    oAlias match {
+	      case None => error("no oAlias for foreign key " + toString(fqattr))
+	      case Some(a) => {
+		println(toString(objattr) + "->" + toString(FQAttribute(a, fqattr.attribute)))
+		1 // null ptr error otherwise. what's getting assigned to this?
+	      }
+	    }
+	  }
+	}
+	o match {
+	  case OUri(u) => URIconstraint(u, pk)
+	  case OVar(v) => VarConstraint(v, objattr)
+	  case OLit(l) => LiteralConstraint(l, objattr)
+	  null
+	}
+	null
+      }
+      case PVar(v) => error("variable predicates require tedious enumeration; too tedious for me.")
+    }
     state
   }
 
@@ -86,7 +185,9 @@ object RDB2RDF {
       )), 
       Map[Var, FQAttribute]()
     )
-    triples.triplepatterns.foreach(s => r2rState = acc(r2rState, s))
+
+    triples.triplepatterns.foreach(s => r2rState = acc(r2rState, s, pk))
+
     Select(
       r2rState.project,
       TableList(r2rState.joins),
