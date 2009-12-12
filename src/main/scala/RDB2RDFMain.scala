@@ -56,16 +56,16 @@ XXX   URI -> URIconstraint(S)
 joins.insert(rel AS alias ON eqS)
   * 
  * */
-object RDB2RDF {
-  type R2RState = Set[Join], Map[Var, FQAttribute]
+// object RDB2RDF {
+//   type R2RState = Set[Join], Map[Var, FQAttribute]
 
-  def acc(state:R2RState, triple):R2RState = ...
+//   def acc(state:R2RState, triple):R2RState = ...
 
-  def apply (sparql:SparqlSelect, stem:StemURI, pk:PrimaryKey) : Select = {
-    val SparqlSelect(attrs, triples) = sparql
+//   def apply (sparql:SparqlSelect, stem:StemURI, pk:PrimaryKey) : Select = {
+//     val SparqlSelect(attrs, triples) = sparql
 
-    val initialSate:(Map[Var,FQAttribute], Set[Equiv]) = 
+//     val initialSate:(Map[Var,FQAttribute], Set[Equiv]) = 
 
 
-  }
-}
+//   }
+// }
