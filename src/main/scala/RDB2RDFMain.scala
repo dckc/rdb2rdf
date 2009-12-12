@@ -99,7 +99,7 @@ object RDB2RDF {
   }
 
   def VarConstraint(v:Var, attr:FQAttribute) = {
-    println("?" + v.s + "=> @@Binding(" + attr + ")")
+    println("?" + v.s + "=> @@Binding(" + toString(attr) + ")")
   }
 
   def LiteralConstraint(lit:SparqlLiteral, attr:FQAttribute) = {
@@ -108,10 +108,8 @@ object RDB2RDF {
 
   def getKeyTarget(from:FQAttribute) : Option[FQAttribute] = {
     from match {
-      case FQAttribute(Relation(Name("Employee")), Attribute(Name("manager"))) =>{
-	println(from + " is an fk")
+      case FQAttribute(Relation(Name("Employee")), Attribute(Name("manager"))) =>
 	Some(FQAttribute(Relation(Name("Employee")), Attribute(Name("id"))))
-      }
       case FQAttribute(Relation(Name("Employee")), Attribute(Name("lastName"))) => None
     }
   }

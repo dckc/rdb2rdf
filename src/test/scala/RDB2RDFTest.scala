@@ -11,7 +11,8 @@ class RDB2RDFTest extends FunSuite {
 SELECT ?empName ?manageName {
 ?emp      <http://hr.example/DB/Employee#lastName>   ?empName .
 ?emp      <http://hr.example/DB/Employee#manager>    ?manager .
-?manager  <http://hr.example/DB/Employee#lastName>   ?managName
+?manager  <http://hr.example/DB/Employee#lastName>   ?managName .
+?manager  <http://hr.example/DB/Employee#manager>    <http://hr.example/DB/Employee/id.18#record> 
 }
 """).get
     val sqlParser = Sql()
