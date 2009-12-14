@@ -12,8 +12,8 @@ case class FQAttribute(relation:Relation, attribute:Attribute)
 case class Attribute(n:Name)
 case class Relation(n:Name)
 case class TableList(joins:List[Join])
-case class Join(tablealias:TableAlias, expression:Option[Expression])
-case class TableAlias(rel:Relation, as:Relation)
+case class Join(relasalias:RelAsAlias, expression:Option[Expression])
+case class RelAsAlias(rel:Relation, as:Relation)
 case class Expression(conjuncts:List[PrimaryExpression])
 sealed abstract class PrimaryExpression
 case class PrimaryExpressionEq(l:FQAttribute, r:RValue) extends PrimaryExpression
@@ -74,15 +74,15 @@ case class Sql() extends JavaTokenParsers {
     repsep(join, "INNER" ~ "JOIN") ^^ { TableList(_) }
 
   def join:Parser[Join] =
-    tablealias ~ opt(optexpr) ^^
-    { case tablealias ~ optexpr => Join(tablealias, optexpr) }
+    relasalias ~ opt(optexpr) ^^
+    { case relasalias ~ optexpr => Join(relasalias, optexpr) }
 
   def optexpr:Parser[Expression] =
     "ON" ~ expression ^^ { case "ON"~expression => expression }
 
-  def tablealias:Parser[TableAlias] =
+  def relasalias:Parser[RelAsAlias] =
     relation ~ "AS" ~ relation ^^
-    { case rel1 ~ "AS" ~ rel2 => TableAlias(rel1, rel2) }
+    { case rel1 ~ "AS" ~ rel2 => RelAsAlias(rel1, rel2) }
 
   def expression:Parser[Expression] = 
     repsep(primaryexpression, "AND") ^^ 

@@ -59,7 +59,7 @@ XXX   URI -> URIconstraint(S)
       VAR -> VARconstraint(O, Alias.Attr)
       URI -> equivs.insert(Alias.Attr= URIconstraint(O))
       *
-  * joins.insert(TableAlias(rel, alias)
+  * joins.insert(RelAsAlias(rel, alias)
 joins.insert(rel AS alias ON eqS)
   * 
  * */
@@ -203,8 +203,8 @@ object RDB2RDF {
 	NamedAttribute(FQAttribute(Relation(Name("manager")),Attribute(Name("lastName"))),Attribute(Name("managName"))))), 
       // List[Join](), 
       List(
-	Join(TableAlias(Relation(Name("Employee")),Relation(Name("emp"))),None),
-	Join(TableAlias(Relation(Name("Employee")),Relation(Name("manager"))),
+	Join(RelAsAlias(Relation(Name("Employee")),Relation(Name("emp"))),None),
+	Join(RelAsAlias(Relation(Name("Employee")),Relation(Name("manager"))),
 	     Some(Expression(List(
 	       PrimaryExpressionEq(FQAttribute(Relation(Name("manager")),Attribute(Name("id"))),
 				   RValueAttr(FQAttribute(Relation(Name("emp")),Attribute(Name("manager"))))))
