@@ -80,7 +80,7 @@ object Sparql {
   /* stemURI + '/' + (\w+) + '#' (\w+) */
   def parsePredicateURI(x:String):PUri = {
     val uri = new URI(x)
-    val path = uri.getPath().split("/").toList.remove(_ == "")
+    val path = uri.getPath().split("/").toList.filterNot(_ == "")
     val subPath = path.slice(0, path.size - 1).mkString("/")
     val stem = uri.getScheme() + "://" + uri.getAuthority + "/" + subPath
     PUri(Stem(stem), Rel(path.last), Attr(uri.getFragment))
@@ -89,7 +89,7 @@ object Sparql {
   /* stemURI + '/' (\w+) '/' (\w+) '.' (\w+) '#record' */
   def parseObjectURI(x:String):ObjUri = {
     val uri = new URI(x)
-    val path = uri.getPath().split("/").toList.remove(_ == "")
+    val path = uri.getPath().split("/").toList.filterNot(_ == "")
     val subPath = path.slice(0, path.size - 2).mkString("/")
     val rel = path(path.size - 2)
     val attrPair = path(path.size-1).split("\\.")
