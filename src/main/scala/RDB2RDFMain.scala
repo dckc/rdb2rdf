@@ -95,7 +95,7 @@ object RDB2RDF {
     val alias = AliasFromNode(u)
     val ObjUri(stem, rel, attr, value) = u
     val fqattr = FQAttribute(alias, pk.attr)
-    println("equiv|=" + fqattr + "=" + value)
+    println("equiv+= " + toString(fqattr) + "=" + value)
   }
 
   /** varConstraint
@@ -124,13 +124,14 @@ object RDB2RDF {
     **                                      Employee      _emp            manager       
     */
     val reldesc = db.relationdescs(rel)
-    val mapper:String = reldesc.attributes(attr) match {
-      case ForeignKey(fkrel, fkattr) =>
-	"RDFNode(" + rel.n.s + ", "
-      case Value(SQLDatatype(dt)) => {
-	reldesc.primarykey match {
-	  case Attribute(attr.n) => "RDFNode(" + rel.n.s + ", "
-	  case _ => dt + "Mapper("
+    val mapper:String = reldesc.primarykey match {
+      case Attribute(attr.n) => "RDFNoder(" + rel.n.s + ", "
+      case _ => {
+	reldesc.attributes(attr) match {
+	  case ForeignKey(fkrel, fkattr) =>
+	    "RDFNoder(" + rel.n.s + ", "
+	  case Value(SQLDatatype(dt)) =>
+	    dt + "Mapper("
 	}
       }
     }
@@ -139,7 +140,7 @@ object RDB2RDF {
   }
 
   def LiteralConstraint(lit:SparqlLiteral, attr:FQAttribute) = {
-    println("equiv|=" + attr + "=" + lit)
+    println("equiv+= " + toString(attr) + "=" + lit)
   }
 
   def toString(fqattr:FQAttribute) : String = {
