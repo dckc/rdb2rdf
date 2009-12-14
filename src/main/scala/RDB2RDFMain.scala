@@ -19,7 +19,7 @@ case class StemURI(s:String)
 case class PrimaryKey(attr:Attribute)
 
 sealed abstract class Binding
-case class Node(fqattr:FQAttribute) extends Binding
+case class RDFNode(fqattr:FQAttribute) extends Binding
 case class Str(fqattr:FQAttribute) extends Binding
 case class Int(fqattr:FQAttribute) extends Binding
 case class Enum(fqattr:FQAttribute) extends Binding
@@ -98,27 +98,66 @@ object RDB2RDF {
     println("equiv|=" + fqattr + "=" + value)
   }
 
-  def VarConstraint(v:Var, attr:FQAttribute) = {
-    println("?" + v.s + "=> @@Binding(" + toString(attr) + ")")
+  /** varConstraint
+   * called on triple pattern subjects and objects of type variable
+   * passed the relation name (from predicate)
+   *   if a subject, then the attribute is the primary key for relation
+   *   if an object, then passed the attribute name (from predicate)
+   * passed the alias for this relation (e.g. _emp)
+   * */
+  def varConstraint(v:Var, rel:Relation, alias:Relation, attr:Attribute) = {
+    //                     Employee      _emp 	         id            
+    //                     Employee      _emp	         lastName      
+    //                     Employee      _emp            manager       
+
+    // if schema(rel)(fttr) is a String => (v => SRValueString(alias.attr))
+
+    // schema(Employee.id) => (?emp => NodeTemplate("Employee", _emp.id) stemURI + rel + fk(rel) + value
+    // schema(Employee.lastName) => (?lastName => RValueString(_emp.lastName)
+    // schema(Employee.manater) => (?manager => ForeignKey("Employee", _manager.id)
+
+    // SELECT ?emp WHERE { ?emp emp:manager <http://hr.example/our/favorite/DB/Employee/id.18#record> ; emp:name ?name }
+    // SQL Results                     SPARQL Results
+    // __emp __name    ?emp                                                      ?name
+    // 4     "Bob"     <http://hr.example/our/favorite/DB/Employee/id.4#record>  "Bob"^^xsd:string
+    // 6     "Sue"     <http://hr.example/our/favorite/DB/Employee/id.6#record>  "Sue"^^xsd:string
+
+//     type String -> RDFStringConstructor // adds ^^xsd:string
+//     type primary key -> RDFNodeConstructor // prefixes with stemURL + relation + attribute  and adds #record
+
+    println("?" + v.s + "=> @@Binding(" + alias.n.s + "." + attr.n.s + ")")
+null
   }
 
   def LiteralConstraint(lit:SparqlLiteral, attr:FQAttribute) = {
     println("equiv|=" + attr + "=" + lit)
   }
 
+  def insertKeyPair(frel:String, fattr:String, trel:String, tattr:String) = {
+//     fks + (Relation(Name(frel)) -> 
+// 	   (Attribute(Name(fattr)) -> 
+// 	    FQAttribute(Relation(Name(trel)), Attribute(Name(tattr)))))
+  }
+
   def getKeyTarget(from:FQAttribute) : Option[FQAttribute] = {
-    from match {
-      case FQAttribute(Relation(Name("Employee")), Attribute(Name("manager"))) =>
-	Some(FQAttribute(Relation(Name("Employee")), Attribute(Name("id"))))
-      case FQAttribute(Relation(Name("Employee")), Attribute(Name("lastName"))) => None
+    val fk = Map[Relation,Map[Attribute, FQAttribute]]()
+    try {
+      Some(fk(from.relation)(from.attribute))
+    } catch {
+      case _ => None
     }
+// from match {
+//       case FQAttribute(Relation(Name("Employee")), Attribute(Name("manager"))) =>
+// 	Some(FQAttribute(Relation(Name("Employee")), Attribute(Name("id"))))
+//       case FQAttribute(Relation(Name("Employee")), Attribute(Name("lastName"))) => None
+//     }
   }
 
   def toString(fqattr:FQAttribute) : String = {
     fqattr.relation.n.s + "." + fqattr.attribute.n.s
   }
 
-  def acc(state:R2RState, triple:TriplePattern, pk:PrimaryKey):R2RState = {
+  def acc(db:DatabaseDesc, state:R2RState, triple:TriplePattern, pk:PrimaryKey):R2RState = {
     val R2RState(project, joins, exprs, varmap) = state
     val TriplePattern(s, p, o) = triple
     p match {
@@ -129,38 +168,50 @@ object RDB2RDF {
 	println(rel.n.s + " AS " + alias.n.s)
 	s match {
 	  case SUri(u) => URIconstraint(u, pk)
-	  case SVar(v) => VarConstraint(v, FQAttribute(alias, pk.attr))
+	  case SVar(v) => varConstraint(v, rel, alias, pk.attr)
 	  null
 	}
 	val objattr = FQAttribute(alias, attr)
 	val oAlias = AliasFromO(o) // None if OLit
-	val target = getKeyTarget(FQAttribute(rel, attr))
-	target match {
-	  case None => null
-	  case Some(fqattr) => {
+	val fks = Map[Relation,Map[Attribute, FQAttribute]]()
+	//fks.insertKeyPair("Employee", "manager", "manager", "id")
+	// fks.insertKeyPair("Employee", "asdf", "fdsa", "id")
+// 	val target = getKeyTarget(FQAttribute(rel, attr))
+// 	(target, oAlias) match {
+// 	    case _, _ =>
+// 	}
+
+	val target = db.relationdescs(rel).attributes(attr) match {
+	  case ForeignKey(fkrel, fkattr) => {
+	    val fqattr = FQAttribute(fkrel, fkattr)
 	    oAlias match {
 	      case None => error("no oAlias for foreign key " + toString(fqattr))
 	      case Some(a) => {
 		println(toString(objattr) + "->" + toString(FQAttribute(a, fqattr.attribute)))
-		1 // null ptr error otherwise. what's getting assigned to this?
+		o match {
+		  case OUri(u) => URIconstraint(u, pk)
+		  case OVar(v) => varConstraint(v, fqattr.relation, a, fqattr.attribute)
+		  case OLit(l) => LiteralConstraint(l, objattr)
+		}
 	      }
 	    }
 	  }
+	  case Value(dt) => {
+	    o match {
+	      case OUri(u) => URIconstraint(u, pk)
+	      case OVar(v) => varConstraint(v, rel, alias, attr)
+	      case OLit(l) => LiteralConstraint(l, objattr)
+	    }
+	  }
 	}
-	o match {
-	  case OUri(u) => URIconstraint(u, pk)
-	  case OVar(v) => VarConstraint(v, objattr)
-	  case OLit(l) => LiteralConstraint(l, objattr)
-	  null
-	}
-	null
+
       }
       case PVar(v) => error("variable predicates require tedious enumeration; too tedious for me.")
     }
     state
   }
 
-  def apply (sparql:SparqlSelect, stem:StemURI, pk:PrimaryKey) : Select = {
+  def apply (db:DatabaseDesc, sparql:SparqlSelect, stem:StemURI, pk:PrimaryKey) : Select = {
     val SparqlSelect(attrs, triples) = sparql
     var r2rState = R2RState(
       // AttributeList(List()), 
@@ -184,7 +235,7 @@ object RDB2RDF {
       Map[Var, FQAttribute]()
     )
 
-    triples.triplepatterns.foreach(s => r2rState = acc(r2rState, s, pk))
+    triples.triplepatterns.foreach(s => r2rState = acc(db, r2rState, s, pk))
 
     Select(
       r2rState.project,

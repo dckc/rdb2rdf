@@ -24,7 +24,7 @@ SELECT emp.lastName AS empName
   FROM Employee AS emp
  WHERE emp.manager=18 AND emp.lastName IS NOT NULL
 """
-    val expected = Select(AttributeList(List(NamedAttribute(FQAttribute(Relation(Name("emp")),Attribute(Name("lastName"))),Attribute(Name("empName"))))),TableList(List(Join(TableAlias(Relation(Name("Employee")),Relation(Name("emp"))),None))),Some(Expression(List(PrimaryExpressionEq(FQAttribute(Relation(Name("emp")),Attribute(Name("manager"))),RValueInt(Name("18"))), PrimaryExpressionNotNull(FQAttribute(Relation(Name("emp")),Attribute(Name("lastName"))))))))
+    val expected = Select(AttributeList(List(NamedAttribute(FQAttribute(Relation(Name("emp")),Attribute(Name("lastName"))),Attribute(Name("empName"))))),TableList(List(Join(TableAlias(Relation(Name("Employee")),Relation(Name("emp"))),None))),Some(Expression(List(PrimaryExpressionEq(FQAttribute(Relation(Name("emp")),Attribute(Name("manager"))),RValueTyped(SQLDatatype.INTEGER,Name("18"))), PrimaryExpressionNotNull(FQAttribute(Relation(Name("emp")),Attribute(Name("lastName"))))))))
     assert(expected === (a.parseAll(a.select, e).get))
   }
 
@@ -37,7 +37,7 @@ SELECT emp.lastName AS empName
                                        AND manager.lastName="Johnson"
 WHERE emp.lastName IS NOT NULL
 """
-    val expected = Select(AttributeList(List(NamedAttribute(FQAttribute(Relation(Name("emp")),Attribute(Name("lastName"))),Attribute(Name("empName"))))),TableList(List(Join(TableAlias(Relation(Name("Employee")),Relation(Name("emp"))),None),Join(TableAlias(Relation(Name("Employee")),Relation(Name("manager"))),Some(Expression(List(PrimaryExpressionEq(FQAttribute(Relation(Name("emp")),Attribute(Name("manager"))),RValueAttr(FQAttribute(Relation(Name("manager")),Attribute(Name("id"))))), PrimaryExpressionEq(FQAttribute(Relation(Name("manager")),Attribute(Name("lastName"))),RValueString(Name("Johnson"))))))))),Some(Expression(List(PrimaryExpressionNotNull(FQAttribute(Relation(Name("emp")),Attribute(Name("lastName"))))))))
+    val expected = Select(AttributeList(List(NamedAttribute(FQAttribute(Relation(Name("emp")),Attribute(Name("lastName"))),Attribute(Name("empName"))))),TableList(List(Join(TableAlias(Relation(Name("Employee")),Relation(Name("emp"))),None),Join(TableAlias(Relation(Name("Employee")),Relation(Name("manager"))),Some(Expression(List(PrimaryExpressionEq(FQAttribute(Relation(Name("emp")),Attribute(Name("manager"))),RValueAttr(FQAttribute(Relation(Name("manager")),Attribute(Name("id"))))), PrimaryExpressionEq(FQAttribute(Relation(Name("manager")),Attribute(Name("lastName"))),RValueTyped(SQLDatatype.STRING,Name("Johnson"))))))))),Some(Expression(List(PrimaryExpressionNotNull(FQAttribute(Relation(Name("emp")),Attribute(Name("lastName"))))))))
     assert(expected === (a.parseAll(a.select, e).get))
   }
 

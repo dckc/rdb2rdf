@@ -21,9 +21,26 @@ case class PrimaryExpressionLt(l:FQAttribute, r:RValue) extends PrimaryExpressio
 case class PrimaryExpressionNotNull(l:FQAttribute) extends PrimaryExpression
 sealed abstract class RValue
 case class RValueAttr(fqattribute:FQAttribute) extends RValue
-case class RValueInt(i:Name) extends RValue
-case class RValueString(i:Name) extends RValue
+case class RValueTyped(datatype:SQLDatatype, i:Name) extends RValue
 case class Name(s:String)
+
+object Name {
+  implicit def fromStringToName(s:String):Name = Name(s)
+}
+
+case class SQLDatatype(name:String)
+
+object SQLDatatype {
+  val STRING = SQLDatatype("String")
+  val INTEGER = SQLDatatype("Int")
+}
+
+sealed abstract class ValueDescription
+case class Value(datatype:SQLDatatype) extends ValueDescription
+case class ForeignKey(rel:Relation, attr:Attribute) extends ValueDescription
+
+case class DatabaseDesc(relationdescs:Map[Relation,RelationDesc])
+case class RelationDesc(primaryKey:Attribute, attributes:Map[Attribute, ValueDescription])
 
 case class Sql() extends JavaTokenParsers {
 
@@ -82,8 +99,8 @@ case class Sql() extends JavaTokenParsers {
 
   def rvalue:Parser[RValue] = (
       fqattribute ^^ { RValueAttr(_) }
-    | """[0-9]+""".r ^^ { x => RValueInt(Name(x)) }
-    | "\"[^\"]*\"".r  ^^ { x => RValueString(Name(x.substring(1, x.size - 1))) }
+    | """[0-9]+""".r ^^ { x => RValueTyped(SQLDatatype.INTEGER, Name(x)) }
+    | "\"[^\"]*\"".r  ^^ { x => RValueTyped(SQLDatatype.STRING, Name(x.substring(1, x.size - 1))) }
   )
 
 }
