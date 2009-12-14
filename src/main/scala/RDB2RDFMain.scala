@@ -19,10 +19,10 @@ case class StemURI(s:String)
 case class PrimaryKey(attr:Attribute)
 
 sealed abstract class Binding
-case class RDFNode(fqattr:FQAttribute) extends Binding
-case class Str(fqattr:FQAttribute) extends Binding
-case class Int(fqattr:FQAttribute) extends Binding
-case class Enum(fqattr:FQAttribute) extends Binding
+case class RDFNode(fqattr:AliasAttribute) extends Binding
+case class Str(fqattr:AliasAttribute) extends Binding
+case class Int(fqattr:AliasAttribute) extends Binding
+case class Enum(fqattr:AliasAttribute) extends Binding
 
 // case class NodeMap()
 // case class PredicateMap()
@@ -64,16 +64,16 @@ joins.insert(rel AS alias ON eqS)
   * 
  * */
 object RDB2RDF {
-  case class R2RState(project:AttributeList, joins:List[Join], exprs:Expression, varmap:Map[Var, FQAttribute])
+  case class R2RState(project:AttributeList, joins:List[Join], exprs:Expression, varmap:Map[Var, AliasAttribute])
 
-  def AliasFromS(s:S):Relation = {
+  def AliasFromS(s:S):Alias = {
     s match {
       case SUri(ob) => AliasFromNode(ob)
       case SVar(v) => AliasFromVar(v)
     }
   }
 
-  def AliasFromO(o:O):Option[Relation] = {
+  def AliasFromO(o:O):Option[Alias] = {
     o match {
       case OUri(ob) => Some(AliasFromNode(ob))
       case OVar(v) => Some(AliasFromVar(v))
@@ -81,20 +81,20 @@ object RDB2RDF {
     }
   }
 
-  def AliasFromNode(u:ObjUri):Relation = {
+  def AliasFromNode(u:ObjUri):Alias = {
     val ObjUri(stem, rel, Attr(a), CellValue(v)) = u
-    Relation(Name(a + v))
+    Alias(Name(a + v))
   }
 
-  def AliasFromVar(vr:Var):Relation = {
+  def AliasFromVar(vr:Var):Alias = {
     val Var(v) = vr
-    Relation(Name("_" + v))
+    Alias(Name("_" + v))
   }
 
   def URIconstraint(u:ObjUri, pk:PrimaryKey) = {
     val alias = AliasFromNode(u)
     val ObjUri(stem, rel, attr, value) = u
-    val fqattr = FQAttribute(alias, pk.attr)
+    val fqattr = AliasAttribute(alias, pk.attr)
     println("equiv+= " + toString(fqattr) + "=" + value)
   }
 
@@ -118,7 +118,7 @@ object RDB2RDF {
    * type String -> RDFStringConstructor // adds ^^xsd:string
    * type primary key -> RDFNodeConstructor // prefixes with stemURL + relation + attribute  and adds #record
    * */
-  def varConstraint(v:Var, db:DatabaseDesc, rel:Relation, alias:Relation, attr:Attribute) = {
+  def varConstraint(v:Var, db:DatabaseDesc, rel:Relation, alias:Alias, attr:Attribute) = {
     /* e.g.                                 Employee      _emp 	          id            
     **                                      Employee      _emp            lastName      
     **                                      Employee      _emp            manager       
@@ -139,13 +139,16 @@ object RDB2RDF {
     null
   }
 
-  def LiteralConstraint(lit:SparqlLiteral, attr:FQAttribute) = {
+  def LiteralConstraint(lit:SparqlLiteral, attr:AliasAttribute) = {
     println("equiv+= " + toString(attr) + "=" + lit)
   }
 
-  def toString(fqattr:FQAttribute) : String = {
-    fqattr.relation.n.s + "." + fqattr.attribute.n.s
+  def toString(fqattr:AliasAttribute) : String = {
+    fqattr.alias.n.s + "." + fqattr.attribute.n.s
   }
+  // def toString(fqattr:RelAttribute) : String = {
+  //   "[" + fqattr.relation.n.s + "]" + fqattr.attribute.n.s
+  // }
 
   def acc(db:DatabaseDesc, state:R2RState, triple:TriplePattern, pk:PrimaryKey):R2RState = {
     val R2RState(project, joins, exprs, varmap) = state
@@ -161,20 +164,19 @@ object RDB2RDF {
 	  case SVar(v) => varConstraint(v, db, rel, alias, pk.attr)
 	  null
 	}
-	val objattr = FQAttribute(alias, attr)
+	val objattr = AliasAttribute(alias, attr)
 	val target = db.relationdescs(rel).attributes(attr) match {
 	  case ForeignKey(fkrel, fkattr) => {
-	    val fqattr = FQAttribute(fkrel, fkattr)
 	    o match {
 	      case OUri(u) => {
 		val oAlias = AliasFromNode(u)
-		println(toString(objattr) + "->" + toString(FQAttribute(oAlias, fqattr.attribute)))
+		println(toString(objattr) + "->" + toString(AliasAttribute(oAlias, fkattr)))
 		URIconstraint(u, pk)
 	      }
 	      case OVar(v) => {
 		val oAlias = AliasFromVar(v)
-		println(toString(objattr) + "->" + toString(FQAttribute(oAlias, fqattr.attribute)))
-		varConstraint(v, db, fqattr.relation, oAlias, fqattr.attribute)
+		println(toString(objattr) + "->" + toString(AliasAttribute(oAlias, fkattr)))
+		varConstraint(v, db, fkrel, oAlias, fkattr)
 	      }
 	      case OLit(l) => LiteralConstraint(l, objattr)
 	    }
@@ -199,23 +201,23 @@ object RDB2RDF {
     var r2rState = R2RState(
       // AttributeList(List()), 
       AttributeList(List(
-	NamedAttribute(FQAttribute(Relation(Name("emp")),Attribute(Name("lastName"))),Attribute(Name("empName"))), 
-	NamedAttribute(FQAttribute(Relation(Name("manager")),Attribute(Name("lastName"))),Attribute(Name("managName"))))), 
+	NamedAttribute(AliasAttribute(Alias(Name("emp")),Attribute(Name("lastName"))),Attribute(Name("empName"))), 
+	NamedAttribute(AliasAttribute(Alias(Name("manager")),Attribute(Name("lastName"))),Attribute(Name("managName"))))), 
       // List[Join](), 
       List(
-	Join(RelAsAlias(Relation(Name("Employee")),Relation(Name("emp"))),None),
-	Join(RelAsAlias(Relation(Name("Employee")),Relation(Name("manager"))),
+	Join(RelAsAlias(Relation(Name("Employee")),Alias(Name("emp"))),None),
+	Join(RelAsAlias(Relation(Name("Employee")),Alias(Name("manager"))),
 	     Some(Expression(List(
-	       PrimaryExpressionEq(FQAttribute(Relation(Name("manager")),Attribute(Name("id"))),
-				   RValueAttr(FQAttribute(Relation(Name("emp")),Attribute(Name("manager"))))))
+	       PrimaryExpressionEq(AliasAttribute(Alias(Name("manager")),Attribute(Name("id"))),
+				   RValueAttr(AliasAttribute(Alias(Name("emp")),Attribute(Name("manager"))))))
 		      )))
       ), 
       // Expression(List()), 
       Expression(List(
-	PrimaryExpressionNotNull(FQAttribute(Relation(Name("emp")),Attribute(Name("lastName")))), 
-	PrimaryExpressionNotNull(FQAttribute(Relation(Name("manager")),Attribute(Name("lastName"))))
+	PrimaryExpressionNotNull(AliasAttribute(Alias(Name("emp")),Attribute(Name("lastName")))), 
+	PrimaryExpressionNotNull(AliasAttribute(Alias(Name("manager")),Attribute(Name("lastName"))))
       )), 
-      Map[Var, FQAttribute]()
+      Map[Var, AliasAttribute]()
     )
 
     triples.triplepatterns.foreach(s => r2rState = acc(db, r2rState, s, pk))
