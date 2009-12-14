@@ -127,8 +127,12 @@ object RDB2RDF {
     val mapper:String = reldesc.attributes(attr) match {
       case ForeignKey(fkrel, fkattr) =>
 	"RDFNode(" + rel.n.s + ", "
-      case Value(SQLDatatype(dt)) =>
-	dt + "Mapper("
+      case Value(SQLDatatype(dt)) => {
+	reldesc.primarykey match {
+	  case Attribute(attr.n) => "RDFNode(" + rel.n.s + ", "
+	  case _ => dt + "Mapper("
+	}
+      }
     }
     println("?" + v.s + "=> " + mapper + alias.n.s + "." + attr.n.s + ")")
     null
