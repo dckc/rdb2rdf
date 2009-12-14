@@ -63,7 +63,7 @@ XXX   URI -> URIconstraint(S)
 joins.insert(rel AS alias ON eqS)
   * 
  * */
-// object RDB2RDF {
+object RDB2RDF {
   case class R2RState(project:AttributeList, joins:List[Join], exprs:Expression, varmap:Map[Var, FQAttribute])
 
   def AliasFromS(s:S):Relation = {
@@ -160,8 +160,6 @@ joins.insert(rel AS alias ON eqS)
     state
   }
 
-//   def apply (sparql:SparqlSelect, stem:StemURI, pk:PrimaryKey) : Select = {
-//     val SparqlSelect(attrs, triples) = sparql
   def apply (sparql:SparqlSelect, stem:StemURI, pk:PrimaryKey) : Select = {
     val SparqlSelect(attrs, triples) = sparql
     var r2rState = R2RState(
