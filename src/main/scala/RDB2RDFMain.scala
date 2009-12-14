@@ -104,53 +104,38 @@ object RDB2RDF {
    *   if a subject, then the attribute is the primary key for relation
    *   if an object, then passed the attribute name (from predicate)
    * passed the alias for this relation (e.g. _emp)
+   *
+   * schema(Employee.id) => (?emp => NodeTemplate("Employee", _emp.id) stemURI + rel + fk(rel) + value
+   * schema(Employee.lastName) => (?lastName => RValueString(_emp.lastName)
+   * schema(Employee.manater) => (?manager => ForeignKey("Employee", _manager.id)
+   * 
+   * SELECT ?emp WHERE { ?emp emp:manager <http://hr.example/our/favorite/DB/Employee/id.18#record> ; emp:name ?name }
+   * SQL Results                     SPARQL Results
+   * __emp __name    ?emp                                                      ?name
+   * 4     "Bob"     <http://hr.example/our/favorite/DB/Employee/id.4#record>  "Bob"^^xsd:string
+   * 6     "Sue"     <http://hr.example/our/favorite/DB/Employee/id.6#record>  "Sue"^^xsd:string
+   * 
+   * type String -> RDFStringConstructor // adds ^^xsd:string
+   * type primary key -> RDFNodeConstructor // prefixes with stemURL + relation + attribute  and adds #record
    * */
-  def varConstraint(v:Var, rel:Relation, alias:Relation, attr:Attribute) = {
-    //                     Employee      _emp 	         id            
-    //                     Employee      _emp	         lastName      
-    //                     Employee      _emp            manager       
-
-    // if schema(rel)(fttr) is a String => (v => SRValueString(alias.attr))
-
-    // schema(Employee.id) => (?emp => NodeTemplate("Employee", _emp.id) stemURI + rel + fk(rel) + value
-    // schema(Employee.lastName) => (?lastName => RValueString(_emp.lastName)
-    // schema(Employee.manater) => (?manager => ForeignKey("Employee", _manager.id)
-
-    // SELECT ?emp WHERE { ?emp emp:manager <http://hr.example/our/favorite/DB/Employee/id.18#record> ; emp:name ?name }
-    // SQL Results                     SPARQL Results
-    // __emp __name    ?emp                                                      ?name
-    // 4     "Bob"     <http://hr.example/our/favorite/DB/Employee/id.4#record>  "Bob"^^xsd:string
-    // 6     "Sue"     <http://hr.example/our/favorite/DB/Employee/id.6#record>  "Sue"^^xsd:string
-
-//     type String -> RDFStringConstructor // adds ^^xsd:string
-//     type primary key -> RDFNodeConstructor // prefixes with stemURL + relation + attribute  and adds #record
-
-    println("?" + v.s + "=> @@Binding(" + alias.n.s + "." + attr.n.s + ")")
-null
+  def varConstraint(v:Var, db:DatabaseDesc, rel:Relation, alias:Relation, attr:Attribute) = {
+    /* e.g.                                 Employee      _emp 	          id            
+    **                                      Employee      _emp            lastName      
+    **                                      Employee      _emp            manager       
+    */
+    val reldesc = db.relationdescs(rel)
+    val mapper:String = reldesc.attributes(attr) match {
+      case ForeignKey(fkrel, fkattr) =>
+	"RDFNode(" + rel.n.s + ", "
+      case Value(SQLDatatype(dt)) =>
+	dt + "Mapper("
+    }
+    println("?" + v.s + "=> " + mapper + alias.n.s + "." + attr.n.s + ")")
+    null
   }
 
   def LiteralConstraint(lit:SparqlLiteral, attr:FQAttribute) = {
     println("equiv|=" + attr + "=" + lit)
-  }
-
-  def insertKeyPair(frel:String, fattr:String, trel:String, tattr:String) = {
-//     fks + (Relation(Name(frel)) -> 
-// 	   (Attribute(Name(fattr)) -> 
-// 	    FQAttribute(Relation(Name(trel)), Attribute(Name(tattr)))))
-  }
-
-  def getKeyTarget(from:FQAttribute) : Option[FQAttribute] = {
-    val fk = Map[Relation,Map[Attribute, FQAttribute]]()
-    try {
-      Some(fk(from.relation)(from.attribute))
-    } catch {
-      case _ => None
-    }
-// from match {
-//       case FQAttribute(Relation(Name("Employee")), Attribute(Name("manager"))) =>
-// 	Some(FQAttribute(Relation(Name("Employee")), Attribute(Name("id"))))
-//       case FQAttribute(Relation(Name("Employee")), Attribute(Name("lastName"))) => None
-//     }
   }
 
   def toString(fqattr:FQAttribute) : String = {
@@ -168,38 +153,31 @@ null
 	println(rel.n.s + " AS " + alias.n.s)
 	s match {
 	  case SUri(u) => URIconstraint(u, pk)
-	  case SVar(v) => varConstraint(v, rel, alias, pk.attr)
+	  case SVar(v) => varConstraint(v, db, rel, alias, pk.attr)
 	  null
 	}
 	val objattr = FQAttribute(alias, attr)
-	val oAlias = AliasFromO(o) // None if OLit
-	val fks = Map[Relation,Map[Attribute, FQAttribute]]()
-	//fks.insertKeyPair("Employee", "manager", "manager", "id")
-	// fks.insertKeyPair("Employee", "asdf", "fdsa", "id")
-// 	val target = getKeyTarget(FQAttribute(rel, attr))
-// 	(target, oAlias) match {
-// 	    case _, _ =>
-// 	}
-
 	val target = db.relationdescs(rel).attributes(attr) match {
 	  case ForeignKey(fkrel, fkattr) => {
 	    val fqattr = FQAttribute(fkrel, fkattr)
-	    oAlias match {
-	      case None => error("no oAlias for foreign key " + toString(fqattr))
-	      case Some(a) => {
-		println(toString(objattr) + "->" + toString(FQAttribute(a, fqattr.attribute)))
-		o match {
-		  case OUri(u) => URIconstraint(u, pk)
-		  case OVar(v) => varConstraint(v, fqattr.relation, a, fqattr.attribute)
-		  case OLit(l) => LiteralConstraint(l, objattr)
-		}
+	    o match {
+	      case OUri(u) => {
+		val oAlias = AliasFromNode(u)
+		println(toString(objattr) + "->" + toString(FQAttribute(oAlias, fqattr.attribute)))
+		URIconstraint(u, pk)
 	      }
+	      case OVar(v) => {
+		val oAlias = AliasFromVar(v)
+		println(toString(objattr) + "->" + toString(FQAttribute(oAlias, fqattr.attribute)))
+		varConstraint(v, db, fqattr.relation, oAlias, fqattr.attribute)
+	      }
+	      case OLit(l) => LiteralConstraint(l, objattr)
 	    }
 	  }
 	  case Value(dt) => {
 	    o match {
 	      case OUri(u) => URIconstraint(u, pk)
-	      case OVar(v) => varConstraint(v, rel, alias, attr)
+	      case OVar(v) => varConstraint(v, db, rel, alias, attr)
 	      case OLit(l) => LiteralConstraint(l, objattr)
 	    }
 	  }
