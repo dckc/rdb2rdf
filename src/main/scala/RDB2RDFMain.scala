@@ -92,9 +92,9 @@ object RDB2RDF {
   }
 
   def URIconstraint(u:ObjUri, pk:PrimaryKey) = {
-    var alias = AliasFromNode(u)
+    val alias = AliasFromNode(u)
     val ObjUri(stem, rel, attr, value) = u
-    var fqattr = FQAttribute(alias, pk.attr)
+    val fqattr = FQAttribute(alias, pk.attr)
     println("equiv|=" + fqattr + "=" + value)
   }
 
@@ -123,18 +123,18 @@ object RDB2RDF {
     val TriplePattern(s, p, o) = triple
     p match {
       case PUri(stem, spRel, spAttr) => {
-	var rel = Relation(Name(spRel.s))
-	var attr = Attribute(Name(spAttr.s))
-	var alias = AliasFromS(s)
+	val rel = Relation(Name(spRel.s))
+	val attr = Attribute(Name(spAttr.s))
+	val alias = AliasFromS(s)
 	println(rel.n.s + " AS " + alias.n.s)
 	s match {
 	  case SUri(u) => URIconstraint(u, pk)
 	  case SVar(v) => VarConstraint(v, FQAttribute(alias, pk.attr))
 	  null
 	}
-	var objattr = FQAttribute(alias, attr)
-	var oAlias = AliasFromO(o) // None if OLit
-	var target = getKeyTarget(FQAttribute(rel, attr))
+	val objattr = FQAttribute(alias, attr)
+	val oAlias = AliasFromO(o) // None if OLit
+	val target = getKeyTarget(FQAttribute(rel, attr))
 	target match {
 	  case None => null
 	  case Some(fqattr) => {
