@@ -3,18 +3,6 @@ package w3c.sw
 import scala.util.parsing.combinator._
 import java.net.URI
 
-object MyParsers extends RegexParsers {
-
-  val uri = """[a-zA-Z0-9:/#\.]+""".r
-  val name = """[a-zA-Z_][a-zA-Z0-9_]*""".r
-}
-
-import MyParsers._
-
-// case class RelationStemGraph(m:Map[String,String])
-// case class RelationMap(Map[(FQAttribute,Tuple),RDFTriple])
-
-// case class Tuple()
 case class StemURI(s:String)
 case class PrimaryKey(attr:Attribute)
 
@@ -24,75 +12,28 @@ case class Str(fqattr:RelAliasAttribute) extends Binding
 case class Int(fqattr:RelAliasAttribute) extends Binding
 case class Enum(fqattr:RelAliasAttribute) extends Binding
 
-// case class NodeMap()
-// case class PredicateMap()
-// case class LiteralMap()
-
-/**
- * Traverses nested BGP.
- * VARconstraint(VAR, FQAttribute):
-    if bindings[VAR]) equivs.insert(FQAttribute= bindings[VAR]
-    bindings[VAR]= FQAttribute
-URIconstraint(URI) => Value:
-    (Rel, Attr, Value) = match(URI, stemURI + '/' (\w+) '/' (\w+) '.' (\w+) '#record')
-    some RelAlias = hash(Rel + URI)
-    pk = primary_key_attribute(Rel)
-    equivs.insert(RelAlias.pk= Value)
-    joins.insert(Rel AS Attr)
-    Value
-
-  * FK = Map(FQAttribute(Employee, manager) => FQAttribute(http://hr.example/DB/Employee, id))
-  * ?emp      <http://hr.example/DB/Employee#manager>    ?manager
-
-(rel, attr) = match(P, stemURI + '/' + (\w+) + '#' (\w+))
-  * rel => Employee  attr => manager
-some relalias = hash(Rel + S)
-  * relalias => "emp"
-pk = primary_key_attribute(Rel)
-  *-ignore, just use the paramater pk
-    match S with
-      VAR -> VARconstraint(S, RelAlias.pk)
-  * eqS = (bindings[s => RelAlias.pk])
-XXX   URI -> URIconstraint(S)
-    match O with
-      LITERAL -> equivs.insert(relalias.attr= O)
-      VAR -> VARconstraint(O, RelAlias.Attr)
-      URI -> equivs.insert(RelAlias.Attr= URIconstraint(O))
-      *
-  * joins.insert(RelAsRelAlias(rel, relalias)
-joins.insert(rel AS relalias ON eqS)
-  * 
- * */
 object RDB2RDF {
   case class R2RState(project:AttributeList, joins:List[Join], exprs:Expression, varmap:Map[Var, RelAliasAttribute])
 
-  def RelAliasFromS(s:S):RelAlias = {
+  def relAliasFromS(s:S):RelAlias = {
     s match {
-      case SUri(ob) => RelAliasFromNode(ob)
-      case SVar(v) => RelAliasFromVar(v)
+      case SUri(ob) => relAliasFromNode(ob)
+      case SVar(v) => relAliasFromVar(v)
     }
   }
 
-  def RelAliasFromO(o:O):Option[RelAlias] = {
-    o match {
-      case OUri(ob) => Some(RelAliasFromNode(ob))
-      case OVar(v) => Some(RelAliasFromVar(v))
-      case OLit(l) => None
-    }
-  }
-
-  def RelAliasFromNode(u:ObjUri):RelAlias = {
+  def relAliasFromNode(u:ObjUri):RelAlias = {
     val ObjUri(stem, rel, Attr(a), CellValue(v)) = u
     RelAlias(Name(a + v))
   }
 
-  def RelAliasFromVar(vr:Var):RelAlias = {
+  def relAliasFromVar(vr:Var):RelAlias = {
     val Var(v) = vr
     RelAlias(Name("R_" + v))
   }
 
-  def URIconstraint(u:ObjUri, pk:PrimaryKey) = {
-    val relalias = RelAliasFromNode(u)
+  def uriConstraint(u:ObjUri, pk:PrimaryKey) = {
+    val relalias = relAliasFromNode(u)
     val ObjUri(stem, rel, attr, value) = u
     val fqattr = RelAliasAttribute(relalias, pk.attr)
     println("equiv+= " + toString(fqattr) + "=" + value)
@@ -105,13 +46,13 @@ object RDB2RDF {
    *   if an object, then passed the attribute name (from predicate)
    * passed the relalias for this relation (e.g. _emp)
    *
-   * schema(Employee.id) => (?emp => NodeTemplate("Employee", _emp.id) stemURI + rel + fk(rel) + value
-   * schema(Employee.lastName) => (?lastName => RValueString(_emp.lastName)
-   * schema(Employee.manater) => (?manager => ForeignKey("Employee", _manager.id)
+   * schema(Employee.id) => (?emp => NodeTemplate("Employee", R_emp.id) stemURI + rel + fk(rel) + value
+   * schema(Employee.lastName) => (?lastName => RValueString(_Remp.lastName)
+   * schema(Employee.manater) => (?manager => ForeignKey("Employee", R_manager.id)
    * 
    * SELECT ?emp WHERE { ?emp emp:manager <http://hr.example/our/favorite/DB/Employee/id.18#record> ; emp:name ?name }
    * SQL Results                     SPARQL Results
-   * __emp __name    ?emp                                                      ?name
+   * A_emp A_name    ?emp                                                      ?name
    * 4     "Bob"     <http://hr.example/our/favorite/DB/Employee/id.4#record>  "Bob"^^xsd:string
    * 6     "Sue"     <http://hr.example/our/favorite/DB/Employee/id.6#record>  "Sue"^^xsd:string
    * 
@@ -139,7 +80,7 @@ object RDB2RDF {
     null
   }
 
-  def LiteralConstraint(lit:SparqlLiteral, attr:RelAliasAttribute) = {
+  def literalConstraint(lit:SparqlLiteral, attr:RelAliasAttribute) = {
     println("equiv+= " + toString(attr) + "=" + lit)
   }
 
@@ -157,10 +98,10 @@ object RDB2RDF {
       case PUri(stem, spRel, spAttr) => {
 	val rel = Relation(Name(spRel.s))
 	val attr = Attribute(Name(spAttr.s))
-	val relalias = RelAliasFromS(s)
+	val relalias = relAliasFromS(s)
 	println(rel.n.s + " AS " + relalias.n.s)
 	s match {
-	  case SUri(u) => URIconstraint(u, pk)
+	  case SUri(u) => uriConstraint(u, pk)
 	  case SVar(v) => varConstraint(v, db, rel, relalias, pk.attr)
 	  null
 	}
@@ -169,23 +110,23 @@ object RDB2RDF {
 	  case ForeignKey(fkrel, fkattr) => {
 	    o match {
 	      case OUri(u) => {
-		val oRelAlias = RelAliasFromNode(u)
+		val oRelAlias = relAliasFromNode(u)
 		println(toString(objattr) + "->" + toString(RelAliasAttribute(oRelAlias, fkattr)))
-		URIconstraint(u, pk)
+		uriConstraint(u, pk)
 	      }
 	      case OVar(v) => {
-		val oRelAlias = RelAliasFromVar(v)
+		val oRelAlias = relAliasFromVar(v)
 		println(toString(objattr) + "->" + toString(RelAliasAttribute(oRelAlias, fkattr)))
 		varConstraint(v, db, fkrel, oRelAlias, fkattr)
 	      }
-	      case OLit(l) => LiteralConstraint(l, objattr)
+	      case OLit(l) => literalConstraint(l, objattr)
 	    }
 	  }
 	  case Value(dt) => {
 	    o match {
-	      case OUri(u) => URIconstraint(u, pk)
+	      case OUri(u) => uriConstraint(u, pk)
 	      case OVar(v) => varConstraint(v, db, rel, relalias, attr)
-	      case OLit(l) => LiteralConstraint(l, objattr)
+	      case OLit(l) => literalConstraint(l, objattr)
 	    }
 	  }
 	}

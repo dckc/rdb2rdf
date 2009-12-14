@@ -3,8 +3,6 @@ package w3c.sw
 import scala.util.parsing.combinator._
 import java.net.URI
 
-import MyParsers._
-
 case class Select(attributelist:AttributeList, tablelist:TableList, expression:Option[Expression])
 case class AttributeList(attributes:List[NamedAttribute])
 case class NamedAttribute(fqattribute:RelAliasAttribute, attralias:AttrAlias)
