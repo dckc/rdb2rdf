@@ -7,13 +7,18 @@ case class StemURI(s:String)
 case class PrimaryKey(attr:Attribute)
 
 sealed abstract class Binding
-case class RDFNode(fqattr:RelAliasAttribute) extends Binding
-case class Str(fqattr:RelAliasAttribute) extends Binding
-case class Int(fqattr:RelAliasAttribute) extends Binding
-case class Enum(fqattr:RelAliasAttribute) extends Binding
+case class RDFNode(relaliasattr:RelAliasAttribute) extends Binding
+case class Str(relaliasattr:RelAliasAttribute) extends Binding
+case class Int(relaliasattr:RelAliasAttribute) extends Binding
+case class Enum(relaliasattr:RelAliasAttribute) extends Binding
 
 object RDB2RDF {
-  case class R2RState(project:AttributeList, joins:List[Join], exprs:Expression, varmap:Map[Var, RelAliasAttribute])
+  case class R2RState(joins:List[Join], exprs:Expression, varmap:Map[Var, SQL2RDFValueMapper])
+
+  sealed abstract class SQL2RDFValueMapper(relaliasattr:RelAliasAttribute)
+  case class StringMapper(relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
+  case class IntMapper(relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
+  case class RDFNoder(relation:Relation, relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
 
   def relAliasFromS(s:S):RelAlias = {
     s match {
@@ -35,8 +40,8 @@ object RDB2RDF {
   def uriConstraint(u:ObjUri, pk:PrimaryKey) = {
     val relalias = relAliasFromNode(u)
     val ObjUri(stem, rel, attr, value) = u
-    val fqattr = RelAliasAttribute(relalias, pk.attr)
-    println("equiv+= " + toString(fqattr) + "=" + value)
+    val relaliasattr = RelAliasAttribute(relalias, pk.attr)
+    println("equiv+= " + toString(relaliasattr) + "=" + value)
   }
 
   /** varConstraint
@@ -59,40 +64,49 @@ object RDB2RDF {
    * type String -> RDFStringConstructor // adds ^^xsd:string
    * type primary key -> RDFNodeConstructor // prefixes with stemURL + relation + attribute  and adds #record
    * */
-  def varConstraint(v:Var, db:DatabaseDesc, rel:Relation, relalias:RelAlias, attr:Attribute) = {
+  def varConstraint(v:Var, db:DatabaseDesc, rel:Relation, relalias:RelAlias, attr:Attribute):SQL2RDFValueMapper = {
     /* e.g.                                 Employee      _emp 	             id            
     **                                      Employee      _emp               lastName      
     **                                      Employee      _emp               manager       
     */
     val reldesc = db.relationdescs(rel)
-    val mapper:String = reldesc.primarykey match {
-      case Attribute(attr.n) => "RDFNoder(" + rel.n.s + ", "
+    val aattr = RelAliasAttribute(relalias, attr)
+    reldesc.primarykey match {
+      case Attribute(attr.n) => 
+	RDFNoder(rel, aattr)
       case _ => {
 	reldesc.attributes(attr) match {
 	  case ForeignKey(fkrel, fkattr) =>
-	    "RDFNoder(" + rel.n.s + ", "
-	  case Value(SQLDatatype(dt)) =>
-	    dt + "Mapper("
+	    RDFNoder(rel, aattr)
+	  case Value(SQLDatatype("String")) =>
+	    StringMapper(aattr)
+	  case Value(SQLDatatype("Int")) =>
+	    IntMapper(aattr)
 	}
       }
     }
-    println("?" + v.s + "=> " + mapper + relalias.n.s + "." + attr.n.s + ")")
-    null
   }
 
   def literalConstraint(lit:SparqlLiteral, attr:RelAliasAttribute) = {
     println("equiv+= " + toString(attr) + "=" + lit)
   }
 
-  def toString(fqattr:RelAliasAttribute) : String = {
-    fqattr.relalias.n.s + "." + fqattr.attribute.n.s
+  def toString(relaliasattr:RelAliasAttribute) : String = {
+    relaliasattr.relalias.n.s + "." + relaliasattr.attribute.n.s
   }
-  // def toString(fqattr:RelAttribute) : String = {
-  //   "[" + fqattr.relation.n.s + "]" + fqattr.attribute.n.s
+  def toString(mapper:SQL2RDFValueMapper) : String = {
+    mapper match {
+      case StringMapper(relalias) => "STRING: " + toString(relalias)
+      case IntMapper(relalias) => "INT: " + toString(relalias)
+      case RDFNoder(relation, relalias) => "RDFNoder: " + relation.n.s + ", " + toString(relalias)
+    }
+  }
+  // def toString(relaliasattr:RelAttribute) : String = {
+  //   "[" + relaliasattr.relation.n.s + "]" + relaliasattr.attribute.n.s
   // }
 
   def acc(db:DatabaseDesc, state:R2RState, triple:TriplePattern, pk:PrimaryKey):R2RState = {
-    val R2RState(project, joins, exprs, varmap) = state
+    var R2RState(joins, exprs, varmap) = state
     val TriplePattern(s, p, o) = triple
     p match {
       case PUri(stem, spRel, spAttr) => {
@@ -102,7 +116,11 @@ object RDB2RDF {
 	println(rel.n.s + " AS " + relalias.n.s)
 	s match {
 	  case SUri(u) => uriConstraint(u, pk)
-	  case SVar(v) => varConstraint(v, db, rel, relalias, pk.attr)
+	  case SVar(v) => {
+	    val binding:SQL2RDFValueMapper = varConstraint(v, db, rel, relalias, pk.attr)
+	    varmap += v -> binding
+	    println(toString(binding))
+	  }
 	  null
 	}
 	val objattr = RelAliasAttribute(relalias, attr)
@@ -117,7 +135,9 @@ object RDB2RDF {
 	      case OVar(v) => {
 		val oRelAlias = relAliasFromVar(v)
 		println(toString(objattr) + "->" + toString(RelAliasAttribute(oRelAlias, fkattr)))
-		varConstraint(v, db, fkrel, oRelAlias, fkattr)
+		val binding = varConstraint(v, db, fkrel, oRelAlias, fkattr)
+		varmap += v -> binding
+		println(toString(binding))
 	      }
 	      case OLit(l) => literalConstraint(l, objattr)
 	    }
@@ -125,7 +145,11 @@ object RDB2RDF {
 	  case Value(dt) => {
 	    o match {
 	      case OUri(u) => uriConstraint(u, pk)
-	      case OVar(v) => varConstraint(v, db, rel, relalias, attr)
+	      case OVar(v) => {
+		val binding = varConstraint(v, db, rel, relalias, attr)
+		varmap += v -> binding
+		println(toString(binding))
+	      }
 	      case OLit(l) => literalConstraint(l, objattr)
 	    }
 	  }
@@ -134,16 +158,22 @@ object RDB2RDF {
       }
       case PVar(v) => error("variable predicates require tedious enumeration; too tedious for me.")
     }
-    state
+    R2RState(joins, exprs, varmap)
+  }
+
+  def project(varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):NamedAttribute = {
+    val mapper:SQL2RDFValueMapper = varmap(vvar)
+    val aattr = mapper match {
+      case StringMapper(relalias) => relalias
+      case IntMapper(relalias) => relalias
+      case RDFNoder(relation, relalias) => relalias
+    }
+    NamedAttribute(aattr, AttrAlias(Name("A_" + vvar.s)))
   }
 
   def apply (db:DatabaseDesc, sparql:SparqlSelect, stem:StemURI, pk:PrimaryKey) : Select = {
     val SparqlSelect(attrs, triples) = sparql
     var r2rState = R2RState(
-      // AttributeList(List()), 
-      AttributeList(List(
-	NamedAttribute(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("lastName"))),AttrAlias(Name("A_empName"))), 
-	NamedAttribute(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("lastName"))),AttrAlias(Name("A_managName"))))), 
       // List[Join](), 
       List(
 	Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_emp"))),None),
@@ -158,13 +188,20 @@ object RDB2RDF {
 	PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("lastName")))), 
 	PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("lastName"))))
       )), 
-      Map[Var, RelAliasAttribute]()
+      Map[Var, SQL2RDFValueMapper]()
     )
 
+    println("varlist before: " + r2rState.varmap)
     triples.triplepatterns.foreach(s => r2rState = acc(db, r2rState, s, pk))
+    println("varlist after: " + r2rState.varmap)
+
+    var attrlist:List[NamedAttribute] = List()
+    println("attrlist before: " + attrlist)
+    attrs.attributelist.foreach(s => attrlist = attrlist ::: List(project(r2rState.varmap, s)))
+    println("attrlist after: " + attrlist)
 
     Select(
-      r2rState.project,
+      AttributeList(attrlist),
       TableList(r2rState.joins),
       Some(r2rState.exprs)
     )

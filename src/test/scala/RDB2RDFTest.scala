@@ -21,13 +21,13 @@ class RDB2RDFTest extends FunSuite {
 SELECT ?empName ?manageName {
 ?emp      <http://hr.example/DB/Employee#lastName>   ?empName .
 ?emp      <http://hr.example/DB/Employee#manager>    ?manager .
-?manager  <http://hr.example/DB/Employee#lastName>   ?managName .
+?manager  <http://hr.example/DB/Employee#lastName>   ?manageName .
 ?manager  <http://hr.example/DB/Employee#manager>    <http://hr.example/DB/Employee/id.18#record> 
 }
 """).get
     val sqlParser = Sql()
     val sqlSelect = sqlParser.parseAll(sqlParser.select, """
-SELECT R_emp.lastName AS A_empName, R_manager.lastName AS A_managName
+SELECT R_emp.lastName AS A_empName, R_manager.lastName AS A_manageName
        FROM Employee AS R_emp
             INNER JOIN Employee AS R_manager ON R_manager.id=R_emp.manager
  WHERE R_emp.lastName IS NOT NULL AND R_manager.lastName IS NOT NULL
