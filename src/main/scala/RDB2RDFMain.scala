@@ -41,7 +41,7 @@ object RDB2RDF {
     val relalias = relAliasFromNode(u)
     val ObjUri(stem, rel, attr, value) = u
     val relaliasattr = RelAliasAttribute(relalias, pk.attr)
-    println("equiv+= " + toString(relaliasattr) + "=" + value)
+    // println("equiv+= " + toString(relaliasattr) + "=" + value)
     Expression(List(PrimaryExpressionEq(relaliasattr,RValueTyped(SQLDatatype.INTEGER,Name(value.s)))))
   }
 
@@ -88,8 +88,9 @@ object RDB2RDF {
     }
   }
 
-  def literalConstraint(lit:SparqlLiteral, attr:RelAliasAttribute) = {
-    println("equiv+= " + toString(attr) + "=" + lit)
+  def literalConstraint(lit:SparqlLiteral, attr:RelAliasAttribute):Expression = {
+    // println("equiv+= " + toString(attr) + "=" + lit)
+    Expression(List(PrimaryExpressionEq(attr,RValueTyped(SQLDatatype.INTEGER,Name(lit.lit.lexicalForm)))))
   }
 
   def toString(relaliasattr:RelAliasAttribute) : String = {
@@ -114,7 +115,7 @@ object RDB2RDF {
 	val rel = Relation(Name(spRel.s))
 	val attr = Attribute(Name(spAttr.s))
 	val relalias = relAliasFromS(s)
-	println(rel.n.s + " AS " + relalias.n.s)
+	// println(rel.n.s + " AS " + relalias.n.s)
 	val sconstraint:Option[Expression] = s match {
 	  case SUri(u) => {
 	    uriConstraint(u, pk)
@@ -124,9 +125,9 @@ object RDB2RDF {
 	  case SVar(v) => {
 	    val binding:SQL2RDFValueMapper = varConstraint(v, db, rel, relalias, pk.attr)
 	    varmap += v -> binding
-	    println(toString(binding))
+	    // println(toString(binding))
+	    None
 	  }
-	  None
 	}
 	joined contains(relalias) match {
 	  case false => {
@@ -141,8 +142,8 @@ object RDB2RDF {
 	    o match {
 	      case OUri(u) => {
 		val oRelAlias = relAliasFromNode(u)
-		println(toString(objattr) + "->" + toString(RelAliasAttribute(oRelAlias, fkattr)))
-		println(fkrel.n.s + " AS " + oRelAlias.n.s)
+		// println(toString(objattr) + "->" + toString(RelAliasAttribute(oRelAlias, fkattr)))
+		// println(fkrel.n.s + " AS " + oRelAlias.n.s)
 		val ret = Some(uriConstraint(u, pk))
 		joined contains(oRelAlias) match {
 		  case false => {
@@ -155,22 +156,22 @@ object RDB2RDF {
 	      case OVar(v) => {
 		val oRelAlias = relAliasFromVar(v)
 		val fkaliasattr = RelAliasAttribute(oRelAlias, fkattr)
-		println(toString(objattr) + "->" + toString(fkaliasattr))
+		// println(toString(objattr) + "->" + toString(fkaliasattr))
 		val binding = varConstraint(v, db, fkrel, oRelAlias, fkattr)
 		varmap += v -> binding
-		println(toString(binding))
-		println(fkrel.n.s + " AS " + oRelAlias.n.s)
-		val ret = Some(Expression(List(PrimaryExpressionEq(fkaliasattr,RValueAttr(objattr)))))
+		// println(toString(binding))
+		// println(fkrel.n.s + " AS " + oRelAlias.n.s)
 		joined contains(oRelAlias) match {
 		  case false => {
-		    joins = joins ::: List(Join(RelAsRelAlias(fkrel,oRelAlias), ret))
+		    joins = joins ::: List(Join(RelAsRelAlias(fkrel,oRelAlias), 
+						Some(Expression(List(PrimaryExpressionEq(fkaliasattr,RValueAttr(objattr)))))))
 		    joined = joined + oRelAlias
 		  }
 		  case true => null
 		}
 	      }
 	      case OLit(l) => {
-		literalConstraint(l, objattr)
+		literalConstraint(l, objattr) // !!! do something with constraint
 	      }
 	    }
 	  }
@@ -182,9 +183,9 @@ object RDB2RDF {
 		// !! 2nd+ ref implies constraint
 		val binding = varConstraint(v, db, rel, relalias, attr)
 		varmap += v -> binding
-		println(toString(binding))
+		// println(toString(binding))
 	      }
-	      case OLit(l) => literalConstraint(l, objattr)
+	      case OLit(l) => literalConstraint(l, objattr) // !!! do something with constraint
 	    }
 	  }
 	}
@@ -239,7 +240,6 @@ object RDB2RDF {
 
     var notNulls:List[PrimaryExpressionNotNull] = List()
     r2rState.allVars.foreach(s => notNulls = nullGuard(notNulls, r2rState.inConstraint, r2rState.varmap, s))
-    println("notNulls: " + notNulls)
 
     Select(
       AttributeList(attrlist),
