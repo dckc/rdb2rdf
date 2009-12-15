@@ -37,11 +37,12 @@ object RDB2RDF {
     RelAlias(Name("R_" + v))
   }
 
-  def uriConstraint(u:ObjUri, pk:PrimaryKey) = {
+  def uriConstraint(u:ObjUri, pk:PrimaryKey):Expression = {
     val relalias = relAliasFromNode(u)
     val ObjUri(stem, rel, attr, value) = u
     val relaliasattr = RelAliasAttribute(relalias, pk.attr)
     println("equiv+= " + toString(relaliasattr) + "=" + value)
+    Expression(List(PrimaryExpressionEq(relaliasattr,RValueTyped(SQLDatatype.INTEGER,Name(value.s)))))
   }
 
   /** varConstraint
@@ -114,21 +115,22 @@ object RDB2RDF {
 	val attr = Attribute(Name(spAttr.s))
 	val relalias = relAliasFromS(s)
 	println(rel.n.s + " AS " + relalias.n.s)
-	s match {
+	val sconstraint:Option[Expression] = s match {
 	  case SUri(u) => {
 	    uriConstraint(u, pk)
 	    // joins = joins ::: List(Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_emp"))),None))
+	    None
 	  }
 	  case SVar(v) => {
 	    val binding:SQL2RDFValueMapper = varConstraint(v, db, rel, relalias, pk.attr)
 	    varmap += v -> binding
 	    println(toString(binding))
 	  }
-	  null
+	  None
 	}
 	joined contains(relalias) match {
 	  case false => {
-	    joins = joins ::: List(Join(RelAsRelAlias(rel,relalias),None))
+	    joins = joins ::: List(Join(RelAsRelAlias(rel,relalias), sconstraint))
 	    joined = joined + relalias
 	  }
 	  case true => null
@@ -140,18 +142,36 @@ object RDB2RDF {
 	      case OUri(u) => {
 		val oRelAlias = relAliasFromNode(u)
 		println(toString(objattr) + "->" + toString(RelAliasAttribute(oRelAlias, fkattr)))
-		uriConstraint(u, pk)
 		println(fkrel.n.s + " AS " + oRelAlias.n.s)
+		val ret = Some(uriConstraint(u, pk))
+		joined contains(oRelAlias) match {
+		  case false => {
+		    joins = joins ::: List(Join(RelAsRelAlias(fkrel,oRelAlias), ret))
+		    joined = joined + oRelAlias
+		  }
+		  case true => null
+		}
 	      }
 	      case OVar(v) => {
 		val oRelAlias = relAliasFromVar(v)
-		println(toString(objattr) + "->" + toString(RelAliasAttribute(oRelAlias, fkattr)))
+		val fkaliasattr = RelAliasAttribute(oRelAlias, fkattr)
+		println(toString(objattr) + "->" + toString(fkaliasattr))
 		val binding = varConstraint(v, db, fkrel, oRelAlias, fkattr)
 		varmap += v -> binding
 		println(toString(binding))
 		println(fkrel.n.s + " AS " + oRelAlias.n.s)
+		val ret = Some(Expression(List(PrimaryExpressionEq(fkaliasattr,RValueAttr(objattr)))))
+		joined contains(oRelAlias) match {
+		  case false => {
+		    joins = joins ::: List(Join(RelAsRelAlias(fkrel,oRelAlias), ret))
+		    joined = joined + oRelAlias
+		  }
+		  case true => null
+		}
 	      }
-	      case OLit(l) => literalConstraint(l, objattr)
+	      case OLit(l) => {
+		literalConstraint(l, objattr)
+	      }
 	    }
 	  }
 	  case Value(dt) => {
@@ -204,15 +224,7 @@ object RDB2RDF {
 
     Select(
       AttributeList(attrlist),
-      // TableList(r2rState.joins),
-      TableList(List(
-	Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_emp"))),None),
-	Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_manager"))),
-	     Some(Expression(List(
-	       PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id"))),
-				   RValueAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("manager"))))))
-		      )))
-      )), 
+      TableList(r2rState.joins),
       Some(r2rState.exprs)
     )
   }
