@@ -158,7 +158,8 @@ object RDB2RDF {
 
 	    val conjuncts = o match {
 
-	      /* OList Should probably throw an error, instead does what user meant. */
+	      /* Literal foreign keys should probably throw an error,
+	       * instead does what user meant. */
 	      case OLit(l) => List(joinconstraint) ::: literalConstraint(l, pk).conjuncts
 
 	      case OUri(u) => List(joinconstraint) ::: uriConstraint(u, pk).conjuncts
@@ -180,15 +181,14 @@ object RDB2RDF {
 	  }
 	  case Value(dt) => {
 	    o match {
+	      case OLit(l) => literalConstraint(l, pk)
 	      case OUri(u) => uriConstraint(u, pk)
 	      case OVar(v) => {
 		allVars = allVars ::: List(v)
 		// !! 2nd+ ref implies constraint
 		val binding = varConstraint(v, db, rel, relalias, attr)
 		varmap += v -> binding
-		// println(toString(binding))
 	      }
-	      case OLit(l) => literalConstraint(l, pk)
 	    }
 	  }
 	}
@@ -228,6 +228,8 @@ object RDB2RDF {
 
   def apply (db:DatabaseDesc, sparql:SparqlSelect, stem:StemURI, pk:PrimaryKey) : Select = {
     val SparqlSelect(attrs, triples) = sparql
+
+    /* Create an object to hold our compilation state. */
     var r2rState = R2RState(
       Set[RelAlias](), 
       List[Var](), 
@@ -236,11 +238,16 @@ object RDB2RDF {
       Map[Var, SQL2RDFValueMapper]()
     )
 
+    /* Examine each triple, updating the compilation state. */
     triples.triplepatterns.foreach(s => r2rState = acc(db, r2rState, s, pk))
 
+    /* Select the attributes corresponding to the variables
+     * in the SPARQL SELECT.  */
     var attrlist:List[NamedAttribute] = List()
     attrs.attributelist.foreach(s => attrlist = attrlist ::: List(project(r2rState.varmap, s)))
 
+    /* Add null guards for attributes associated with variables which
+     * are not optional and have not been used in constraints. */
     var notNulls:List[PrimaryExpressionNotNull] = List()
     r2rState.allVars.foreach(s => notNulls = nullGuard(notNulls, r2rState.inConstraint, r2rState.varmap, s))
     val where = notNulls.size match {
@@ -248,6 +255,7 @@ object RDB2RDF {
       case _ => Some(Expression(notNulls))
     }
 
+    /* Construct the generated query as an abstract syntax. */
     Select(
       AttributeList(attrlist),
       TableList(r2rState.joins),

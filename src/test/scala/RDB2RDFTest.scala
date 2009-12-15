@@ -33,6 +33,8 @@ SELECT R_emp.id AS A_emp
   }
 
   test("?s <p> 18") {
+    /* Literal foreign keys should probably throw an error,
+     * instead does what user meant. */
     val sparqlParser = Sparql()
     val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
 SELECT ?emp {
