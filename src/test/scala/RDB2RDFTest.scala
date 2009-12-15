@@ -70,5 +70,23 @@ SELECT R_emp.lastName AS A_empName, R_manager.lastName AS A_manageName
     assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id")))) === sqlSelect)
   }
 
+  test("transform tup1") {
+    val sparqlParser = Sparql()
+    val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
+SELECT ?empName {
+?emp      <http://hr.example/DB/Employee#lastName>   ?empName .
+?emp      <http://hr.example/DB/Employee#manager>    <http://hr.example/DB/Employee/id.18#record>
+ }
+""").get
+    val sqlParser = Sql()
+    val sqlSelect = sqlParser.parseAll(sqlParser.select, """
+SELECT R_emp.lastName AS A_empName
+       FROM Employee AS R_emp
+            INNER JOIN Employee AS R_id18 ON R_id18.id=R_emp.manager AND R_id18.id=18
+ WHERE R_emp.lastName IS NOT NULL
+""").get
+    assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id")))) === sqlSelect)
+  }
+
 
 }
