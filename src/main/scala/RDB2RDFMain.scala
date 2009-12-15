@@ -81,18 +81,17 @@ object RDB2RDF {
    * type String -> RDFStringConstructor // adds ^^xsd:string
    * type primary key -> RDFNodeConstructor // prefixes with stemURL + relation + attribute  and adds #record
    * */
-  def varConstraint(v:Var, db:DatabaseDesc, rel:Relation, relalias:RelAlias, attr:Attribute):SQL2RDFValueMapper = {
-    /* e.g.                                 Employee      _emp 	             id            
-    **                                      Employee      _emp               lastName      
-    **                                      Employee      _emp               manager       
+  def varConstraint(v:Var, db:DatabaseDesc, rel:Relation, aattr:RelAliasAttribute):SQL2RDFValueMapper = {
+    /* e.g.                                 Employee      _emp.id            
+    **                                      Employee      _emp.lastName      
+    **                                      Employee      _emp.manager       
     */
     val reldesc = db.relationdescs(rel)
-    val aattr = RelAliasAttribute(relalias, attr)
     reldesc.primarykey match {
-      case Attribute(attr.n) => 
+      case Attribute(aattr.attribute.n) => 
 	RDFNoder(rel, aattr)
       case _ => {
-	reldesc.attributes(attr) match {
+	reldesc.attributes(aattr.attribute) match {
 	  case ForeignKey(fkrel, fkattr) =>
 	    RDFNoder(rel, aattr)
 	  case Value(SQLDatatype("String")) =>
@@ -126,6 +125,9 @@ object RDB2RDF {
 	val rel = Relation(Name(spRel.s))
 	val attr = Attribute(Name(spAttr.s))
 	val relalias = relAliasFromS(s)
+	val subjattr = RelAliasAttribute(relalias, pk.attr)
+	val objattr = RelAliasAttribute(relalias, attr)
+
 	// println(rel.n.s + " AS " + relalias.n.s)
 	val sconstraint:Option[Expression] = s match {
 	  case SUri(u) => {
@@ -134,7 +136,7 @@ object RDB2RDF {
 	    None
 	  }
 	  case SVar(v) => {
-	    val binding:SQL2RDFValueMapper = varConstraint(v, db, rel, relalias, pk.attr)
+	    val binding:SQL2RDFValueMapper = varConstraint(v, db, rel, subjattr)
 	    varmap += v -> binding
 	    // println(toString(binding))
 	    None
@@ -147,7 +149,6 @@ object RDB2RDF {
 	  }
 	  case true => null
 	}
-	val objattr = RelAliasAttribute(relalias, attr)
 	val target = db.relationdescs(rel).attributes(attr) match {
 	  case ForeignKey(fkrel, fkattr) => {
 	    val oRelAlias = relAliasFromO(o)
@@ -169,7 +170,7 @@ object RDB2RDF {
 	      case OUri(u) => List(joinconstraint) ::: uriConstraint(u, pk).conjuncts
 
 	      case OVar(v) => {
-		val binding = varConstraint(v, db, fkrel, oRelAlias, fkattr)
+		val binding = varConstraint(v, db, fkrel, fkaliasattr)
 		varmap += v -> binding
 		List(joinconstraint)
 	      }
@@ -193,7 +194,7 @@ object RDB2RDF {
 	      case OVar(v) => {
 		allVars = allVars ::: List(v)
 		// !! 2nd+ ref implies constraint
-		val binding = varConstraint(v, db, rel, relalias, attr)
+		val binding = varConstraint(v, db, rel, objattr)
 		varmap += v -> binding
 	      }
 	    }
