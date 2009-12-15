@@ -13,7 +13,7 @@ case class Int(relaliasattr:RelAliasAttribute) extends Binding
 case class Enum(relaliasattr:RelAliasAttribute) extends Binding
 
 object RDB2RDF {
-  case class R2RState(joined:Set[RelAlias], allVars:List[Var], inConstraint:Set[Var], joins:List[Join], varmap:Map[Var, SQL2RDFValueMapper])
+  case class R2RState(joined:Set[RelAlias], allVars:List[Var], inConstraint:Set[Var], joins:List[Join], varmap:Map[Var, SQL2RDFValueMapper], exprs:List[PrimaryExpression])
 
   sealed abstract class SQL2RDFValueMapper(relaliasattr:RelAliasAttribute)
   case class StringMapper(relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
@@ -56,11 +56,9 @@ object RDB2RDF {
     Expression(List(PrimaryExpressionEq(relaliasattr,RValueTyped(SQLDatatype.INTEGER,Name(u.v.s)))))
   }
 
-  def literalConstraint(lit:SparqlLiteral, pk:PrimaryKey):Expression = {
-    val relalias = relAliasFromLiteral(lit)
-    val relaliasattr = RelAliasAttribute(relalias, pk.attr)
+  def literalConstraint(lit:SparqlLiteral, relaliasattr:RelAliasAttribute, dt:SQLDatatype):Expression = {
     // println("equiv+= " + toString(attr) + "=" + lit)
-    Expression(List(PrimaryExpressionEq(relaliasattr,RValueTyped(SQLDatatype.INTEGER,Name(lit.lit.lexicalForm)))))
+    Expression(List(PrimaryExpressionEq(relaliasattr,RValueTyped(dt,Name(lit.lit.lexicalForm)))))
   }
 
   /** varConstraint
@@ -121,7 +119,7 @@ object RDB2RDF {
   // }
 
   def acc(db:DatabaseDesc, state:R2RState, triple:TriplePattern, pk:PrimaryKey):R2RState = {
-    var R2RState(joined, allVars, inConstraint, joins, varmap) = state
+    var R2RState(joined, allVars, inConstraint, joins, varmap, exprs) = state
     val TriplePattern(s, p, o) = triple
     p match {
       case PUri(stem, spRel, spAttr) => {
@@ -156,11 +154,17 @@ object RDB2RDF {
 	    val fkaliasattr = RelAliasAttribute(oRelAlias, fkattr)
 	    val joinconstraint = PrimaryExpressionEq(fkaliasattr,RValueAttr(objattr))
 
+	    var dt = db.relationdescs(fkrel).attributes(fkattr) match {
+	      case ForeignKey(dfkrel, dfkattr) => error("foreign key " + rel.n + "." + attr.n + 
+							"->" + fkrel.n + "." + fkattr.n + 
+							"->" + dfkrel.n + "." + dfkattr.n)
+	      case Value(x) => x
+	    }
 	    val conjuncts = o match {
 
 	      /* Literal foreign keys should probably throw an error,
 	       * instead does what user meant. */
-	      case OLit(l) => List(joinconstraint) ::: literalConstraint(l, pk).conjuncts
+	      case OLit(l) => List(joinconstraint) ::: literalConstraint(l, fkaliasattr, dt).conjuncts
 
 	      case OUri(u) => List(joinconstraint) ::: uriConstraint(u, pk).conjuncts
 
@@ -181,7 +185,10 @@ object RDB2RDF {
 	  }
 	  case Value(dt) => {
 	    o match {
-	      case OLit(l) => literalConstraint(l, pk)
+	      case OLit(l) => {
+		val c = literalConstraint(l, objattr, dt).conjuncts
+		exprs = exprs ::: c
+	      }
 	      case OUri(u) => uriConstraint(u, pk)
 	      case OVar(v) => {
 		allVars = allVars ::: List(v)
@@ -196,7 +203,7 @@ object RDB2RDF {
       }
       case PVar(v) => error("variable predicates require tedious enumeration; too tedious for me.")
     }
-    R2RState(joined, allVars, inConstraint, joins, varmap)
+    R2RState(joined, allVars, inConstraint, joins, varmap, exprs)
   }
 
   def project(varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):NamedAttribute = {
@@ -209,7 +216,7 @@ object RDB2RDF {
     NamedAttribute(aattr, AttrAlias(Name("A_" + vvar.s)))
   }
 
-  def nullGuard(notNulls:List[PrimaryExpressionNotNull], inConstraint:Set[Var], varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):List[PrimaryExpressionNotNull] = {
+  def nullGuard(notNulls:List[PrimaryExpression], inConstraint:Set[Var], varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):List[PrimaryExpression] = {
     var ret = notNulls
     inConstraint contains(vvar) match {
       case false => {
@@ -235,7 +242,8 @@ object RDB2RDF {
       List[Var](), 
       Set[Var](), 
       List[Join](), 
-      Map[Var, SQL2RDFValueMapper]()
+      Map[Var, SQL2RDFValueMapper](), 
+      List[PrimaryExpression]()
     )
 
     /* Examine each triple, updating the compilation state. */
@@ -248,7 +256,7 @@ object RDB2RDF {
 
     /* Add null guards for attributes associated with variables which
      * are not optional and have not been used in constraints. */
-    var notNulls:List[PrimaryExpressionNotNull] = List()
+    var notNulls:List[PrimaryExpression] = r2rState.exprs
     r2rState.allVars.foreach(s => notNulls = nullGuard(notNulls, r2rState.inConstraint, r2rState.varmap, s))
     val where = notNulls.size match {
       case 0 => None

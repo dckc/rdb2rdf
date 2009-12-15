@@ -6,7 +6,7 @@ import java.net.URI
 case class Select(attributelist:AttributeList, tablelist:TableList, expression:Option[Expression])
 case class AttributeList(attributes:List[NamedAttribute])
 case class NamedAttribute(fqattribute:RelAliasAttribute, attralias:AttrAlias)
-//case class RelAttribute(relation:Relation, attribute:Attribute)
+//case class RelAttribute(relation:Relation, attribute:Attribute) c.f. ForeignKey
 case class RelAliasAttribute(relalias:RelAlias, attribute:Attribute)
 case class Attribute(n:Name)
 case class AttrAlias(n:Name)
