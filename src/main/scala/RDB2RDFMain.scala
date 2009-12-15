@@ -49,16 +49,14 @@ object RDB2RDF {
     RelAlias(Name("R_" + v))
   }
 
-  def uriConstraint(u:ObjUri, pk:PrimaryKey):Expression = {
-    val relalias = relAliasFromNode(u)
-    val relaliasattr = RelAliasAttribute(relalias, pk.attr)
-    // println("equiv+= " + toString(relaliasattr) + "=" + value)
-    Expression(List(PrimaryExpressionEq(relaliasattr,RValueTyped(SQLDatatype.INTEGER,Name(u.v.s)))))
+  def uriConstraint(constrainMe:RelAliasAttribute, u:ObjUri):Expression = {
+    // println("equiv+= " + toString(constrainMe) + "=" + value)
+    Expression(List(PrimaryExpressionEq(constrainMe,RValueTyped(SQLDatatype.INTEGER,Name(u.v.s)))))
   }
 
-  def literalConstraint(lit:SparqlLiteral, relaliasattr:RelAliasAttribute, dt:SQLDatatype):Expression = {
+  def literalConstraint(constrainMe:RelAliasAttribute, lit:SparqlLiteral, dt:SQLDatatype):Expression = {
     // println("equiv+= " + toString(attr) + "=" + lit)
-    Expression(List(PrimaryExpressionEq(relaliasattr,RValueTyped(dt,Name(lit.lit.lexicalForm)))))
+    Expression(List(PrimaryExpressionEq(constrainMe,RValueTyped(dt,Name(lit.lit.lexicalForm)))))
   }
 
   /** varConstraint
@@ -81,23 +79,23 @@ object RDB2RDF {
    * type String -> RDFStringConstructor // adds ^^xsd:string
    * type primary key -> RDFNodeConstructor // prefixes with stemURL + relation + attribute  and adds #record
    * */
-  def varConstraint(v:Var, db:DatabaseDesc, rel:Relation, aattr:RelAliasAttribute):SQL2RDFValueMapper = {
+  def varConstraint(constrainMe:RelAliasAttribute, v:Var, db:DatabaseDesc, rel:Relation):SQL2RDFValueMapper = {
     /* e.g.                                 Employee      _emp.id            
     **                                      Employee      _emp.lastName      
     **                                      Employee      _emp.manager       
     */
     val reldesc = db.relationdescs(rel)
     reldesc.primarykey match {
-      case Attribute(aattr.attribute.n) => 
-	RDFNoder(rel, aattr)
+      case Attribute(constrainMe.attribute.n) => 
+	RDFNoder(rel, constrainMe)
       case _ => {
-	reldesc.attributes(aattr.attribute) match {
+	reldesc.attributes(constrainMe.attribute) match {
 	  case ForeignKey(fkrel, fkattr) =>
-	    RDFNoder(rel, aattr)
+	    RDFNoder(rel, constrainMe)
 	  case Value(SQLDatatype("String")) =>
-	    StringMapper(aattr)
+	    StringMapper(constrainMe)
 	  case Value(SQLDatatype("Int")) =>
-	    IntMapper(aattr)
+	    IntMapper(constrainMe)
 	}
       }
     }
@@ -131,12 +129,12 @@ object RDB2RDF {
 	// println(rel.n.s + " AS " + relalias.n.s)
 	val sconstraint:Option[Expression] = s match {
 	  case SUri(u) => {
-	    uriConstraint(u, pk)
+	    uriConstraint(subjattr, u)
 	    // joins = joins ::: List(Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_emp"))),None))
 	    None
 	  }
 	  case SVar(v) => {
-	    val binding:SQL2RDFValueMapper = varConstraint(v, db, rel, subjattr)
+	    val binding:SQL2RDFValueMapper = varConstraint(subjattr, v, db, rel)
 	    varmap += v -> binding
 	    // println(toString(binding))
 	    None
@@ -165,12 +163,12 @@ object RDB2RDF {
 
 	      /* Literal foreign keys should probably throw an error,
 	       * instead does what user meant. */
-	      case OLit(l) => List(joinconstraint) ::: literalConstraint(l, fkaliasattr, dt).conjuncts
+	      case OLit(l) => List(joinconstraint) ::: literalConstraint(fkaliasattr, l, dt).conjuncts
 
-	      case OUri(u) => List(joinconstraint) ::: uriConstraint(u, pk).conjuncts
+	      case OUri(u) => List(joinconstraint) ::: uriConstraint(fkaliasattr, u).conjuncts
 
 	      case OVar(v) => {
-		val binding = varConstraint(v, db, fkrel, fkaliasattr)
+		val binding = varConstraint(fkaliasattr, v, db, fkrel)
 		varmap += v -> binding
 		List(joinconstraint)
 	      }
@@ -187,14 +185,14 @@ object RDB2RDF {
 	  case Value(dt) => {
 	    o match {
 	      case OLit(l) => {
-		val c = literalConstraint(l, objattr, dt).conjuncts
+		val c = literalConstraint(objattr, l, dt).conjuncts
 		exprs = exprs ::: c
 	      }
-	      case OUri(u) => uriConstraint(u, pk)
+	      case OUri(u) => uriConstraint(objattr, u)
 	      case OVar(v) => {
 		allVars = allVars ::: List(v)
 		// !! 2nd+ ref implies constraint
-		val binding = varConstraint(v, db, rel, objattr)
+		val binding = varConstraint(objattr, v, db, rel)
 		varmap += v -> binding
 	      }
 	    }
