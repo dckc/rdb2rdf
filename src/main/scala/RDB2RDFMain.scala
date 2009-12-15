@@ -13,7 +13,7 @@ case class Int(relaliasattr:RelAliasAttribute) extends Binding
 case class Enum(relaliasattr:RelAliasAttribute) extends Binding
 
 object RDB2RDF {
-  case class R2RState(joined:Set[RelAlias], joins:List[Join], exprs:Expression, varmap:Map[Var, SQL2RDFValueMapper])
+  case class R2RState(joined:Set[RelAlias], allVars:List[Var], inConstraint:Set[Var], joins:List[Join], varmap:Map[Var, SQL2RDFValueMapper])
 
   sealed abstract class SQL2RDFValueMapper(relaliasattr:RelAliasAttribute)
   case class StringMapper(relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
@@ -107,7 +107,7 @@ object RDB2RDF {
   // }
 
   def acc(db:DatabaseDesc, state:R2RState, triple:TriplePattern, pk:PrimaryKey):R2RState = {
-    var R2RState(joined, joins, exprs, varmap) = state
+    var R2RState(joined, allVars, inConstraint, joins, varmap) = state
     val TriplePattern(s, p, o) = triple
     p match {
       case PUri(stem, spRel, spAttr) => {
@@ -178,6 +178,8 @@ object RDB2RDF {
 	    o match {
 	      case OUri(u) => uriConstraint(u, pk)
 	      case OVar(v) => {
+		allVars = allVars ::: List(v)
+		// !! 2nd+ ref implies constraint
 		val binding = varConstraint(v, db, rel, relalias, attr)
 		varmap += v -> binding
 		println(toString(binding))
@@ -190,7 +192,7 @@ object RDB2RDF {
       }
       case PVar(v) => error("variable predicates require tedious enumeration; too tedious for me.")
     }
-    R2RState(joined, joins, exprs, varmap)
+    R2RState(joined, allVars, inConstraint, joins, varmap)
   }
 
   def project(varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):NamedAttribute = {
@@ -203,29 +205,46 @@ object RDB2RDF {
     NamedAttribute(aattr, AttrAlias(Name("A_" + vvar.s)))
   }
 
+  def nullGuard(notNulls:List[PrimaryExpressionNotNull], inConstraint:Set[Var], varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):List[PrimaryExpressionNotNull] = {
+    var ret = notNulls
+    inConstraint contains(vvar) match {
+      case false => {
+	val mapper:SQL2RDFValueMapper = varmap(vvar)
+	val aattr = mapper match {
+	  case StringMapper(relalias) => relalias
+	  case IntMapper(relalias) => relalias
+	  case RDFNoder(relation, relalias) => relalias
+	}
+	ret = ret ::: List(PrimaryExpressionNotNull(aattr))
+      }
+      case true => null
+    }
+    ret
+  }
+
   def apply (db:DatabaseDesc, sparql:SparqlSelect, stem:StemURI, pk:PrimaryKey) : Select = {
     val SparqlSelect(attrs, triples) = sparql
     var r2rState = R2RState(
       Set[RelAlias](), 
+      List[Var](), 
+      Set[Var](), 
       List[Join](), 
-      // Expression(List()), 
-      Expression(List(
-	PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("lastName")))), 
-	PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("lastName"))))
-      )), 
       Map[Var, SQL2RDFValueMapper]()
     )
 
     triples.triplepatterns.foreach(s => r2rState = acc(db, r2rState, s, pk))
-    println("joins: " + r2rState.joins)
 
     var attrlist:List[NamedAttribute] = List()
     attrs.attributelist.foreach(s => attrlist = attrlist ::: List(project(r2rState.varmap, s)))
 
+    var notNulls:List[PrimaryExpressionNotNull] = List()
+    r2rState.allVars.foreach(s => notNulls = nullGuard(notNulls, r2rState.inConstraint, r2rState.varmap, s))
+    println("notNulls: " + notNulls)
+
     Select(
       AttributeList(attrlist),
       TableList(r2rState.joins),
-      Some(r2rState.exprs)
+      Some(Expression(notNulls))
     )
   }
 }
