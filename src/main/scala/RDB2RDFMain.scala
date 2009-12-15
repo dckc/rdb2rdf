@@ -240,11 +240,15 @@ object RDB2RDF {
 
     var notNulls:List[PrimaryExpressionNotNull] = List()
     r2rState.allVars.foreach(s => notNulls = nullGuard(notNulls, r2rState.inConstraint, r2rState.varmap, s))
+    val where = notNulls.size match {
+      case 0 => None
+      case _ => Some(Expression(notNulls))
+    }
 
     Select(
       AttributeList(attrlist),
       TableList(r2rState.joins),
-      Some(Expression(notNulls))
+      where
     )
   }
 }

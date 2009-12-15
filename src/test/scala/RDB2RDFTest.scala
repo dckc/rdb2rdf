@@ -26,9 +26,9 @@ SELECT ?emp {
     val sqlSelect = sqlParser.parseAll(sqlParser.select, """
 SELECT R_emp.id AS A_emp
        FROM Employee AS R_emp
-            INNER JOIN Employee AS R_manager ON R_manager.id=R_emp.manager
-""").get
-    RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))))
+            INNER JOIN Employee AS id18 ON id18.id=18
+""").get // !!! id18.id=R_emp.manager
+    assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id")))) === sqlSelect)
     true
   }
 
