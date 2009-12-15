@@ -27,6 +27,14 @@ object RDB2RDF {
     }
   }
 
+  def relAliasFromO(o:O):RelAlias = {
+    o match {
+      case OUri(ob) => relAliasFromNode(ob)
+      case OVar(v) => relAliasFromVar(v)
+      case OLit(l) => relAliasFromLiteral(l)
+    }
+  }
+
   def relAliasFromNode(u:ObjUri):RelAlias = {
     val ObjUri(stem, rel, Attr(a), CellValue(v)) = u
     RelAlias(Name("R_" + a + v))
@@ -144,61 +152,30 @@ object RDB2RDF {
 	val objattr = RelAliasAttribute(relalias, attr)
 	val target = db.relationdescs(rel).attributes(attr) match {
 	  case ForeignKey(fkrel, fkattr) => {
-	    o match {
-	      case OLit(l) => {
-		// println(toString(objattr) + "->" + toString(RelAliasAttribute(oRelAlias, fkattr)))
-		// println(fkrel.n.s + " AS " + oRelAlias.n.s)
+	    val oRelAlias = relAliasFromO(o)
+	    val fkaliasattr = RelAliasAttribute(oRelAlias, fkattr)
+	    val joinconstraint = PrimaryExpressionEq(fkaliasattr,RValueAttr(objattr))
 
-		val oRelAlias = relAliasFromLiteral(l)
-		val fkaliasattr = RelAliasAttribute(oRelAlias, fkattr)
-		val joinconstraint = PrimaryExpressionEq(fkaliasattr,RValueAttr(objattr))
+	    val conjuncts = o match {
 
-		val conjuncts = List(joinconstraint) ::: literalConstraint(l, pk).conjuncts
-		joined contains(oRelAlias) match {
-		  case false => {
-		    joins = joins ::: List(Join(RelAsRelAlias(fkrel,oRelAlias), Some(Expression(conjuncts))))
-		    joined = joined + oRelAlias
-		  }
-		  case true => null
-		}		
-	      }
-	      case OUri(u) => {
-		// println(toString(objattr) + "->" + toString(RelAliasAttribute(oRelAlias, fkattr)))
-		// println(fkrel.n.s + " AS " + oRelAlias.n.s)
+	      /* OList Should probably throw an error, instead does what user meant. */
+	      case OLit(l) => List(joinconstraint) ::: literalConstraint(l, pk).conjuncts
 
-		val oRelAlias = relAliasFromNode(u)
-		val fkaliasattr = RelAliasAttribute(oRelAlias, fkattr)
-		val joinconstraint = PrimaryExpressionEq(fkaliasattr,RValueAttr(objattr))
+	      case OUri(u) => List(joinconstraint) ::: uriConstraint(u, pk).conjuncts
 
-		val conjuncts = List(joinconstraint) ::: uriConstraint(u, pk).conjuncts
-		joined contains(oRelAlias) match {
-		  case false => {
-		    joins = joins ::: List(Join(RelAsRelAlias(fkrel,oRelAlias), Some(Expression(conjuncts))))
-		    joined = joined + oRelAlias
-		  }
-		  case true => null
-		}
-	      }
 	      case OVar(v) => {
-		// println(toString(objattr) + "->" + toString(fkaliasattr))
-		// println(toString(binding))
-		// println(fkrel.n.s + " AS " + oRelAlias.n.s)
-
-		val oRelAlias = relAliasFromVar(v)
-		val fkaliasattr = RelAliasAttribute(oRelAlias, fkattr)
-		val joinconstraint = PrimaryExpressionEq(fkaliasattr,RValueAttr(objattr))
-
 		val binding = varConstraint(v, db, fkrel, oRelAlias, fkattr)
-		joined contains(oRelAlias) match {
-		  case false => {
-		    joins = joins ::: List(Join(RelAsRelAlias(fkrel,oRelAlias), Some(Expression(List(joinconstraint)))))
-		    joined = joined + oRelAlias
-		  }
-		  case true => null
-		}
-
 		varmap += v -> binding
+		List(joinconstraint)
 	      }
+	    }
+
+	    joined contains(oRelAlias) match {
+	      case false => {
+		joins = joins ::: List(Join(RelAsRelAlias(fkrel,oRelAlias), Some(Expression(conjuncts))))
+		joined = joined + oRelAlias
+	      }
+	      case true => null
 	    }
 	  }
 	  case Value(dt) => {
