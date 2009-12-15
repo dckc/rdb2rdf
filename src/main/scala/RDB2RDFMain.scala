@@ -29,7 +29,11 @@ object RDB2RDF {
 
   def relAliasFromNode(u:ObjUri):RelAlias = {
     val ObjUri(stem, rel, Attr(a), CellValue(v)) = u
-    RelAlias(Name(a + v))
+    RelAlias(Name("R_" + a + v))
+  }
+
+  def relAliasFromLiteral(l:SparqlLiteral):RelAlias = {
+    RelAlias(Name("R_" + l.lit.lexicalForm))
   }
 
   def relAliasFromVar(vr:Var):RelAlias = {
@@ -39,10 +43,16 @@ object RDB2RDF {
 
   def uriConstraint(u:ObjUri, pk:PrimaryKey):Expression = {
     val relalias = relAliasFromNode(u)
-    val ObjUri(stem, rel, attr, value) = u
     val relaliasattr = RelAliasAttribute(relalias, pk.attr)
     // println("equiv+= " + toString(relaliasattr) + "=" + value)
-    Expression(List(PrimaryExpressionEq(relaliasattr,RValueTyped(SQLDatatype.INTEGER,Name(value.s)))))
+    Expression(List(PrimaryExpressionEq(relaliasattr,RValueTyped(SQLDatatype.INTEGER,Name(u.v.s)))))
+  }
+
+  def literalConstraint(lit:SparqlLiteral, pk:PrimaryKey):Expression = {
+    val relalias = relAliasFromLiteral(lit)
+    val relaliasattr = RelAliasAttribute(relalias, pk.attr)
+    // println("equiv+= " + toString(attr) + "=" + lit)
+    Expression(List(PrimaryExpressionEq(relaliasattr,RValueTyped(SQLDatatype.INTEGER,Name(lit.lit.lexicalForm)))))
   }
 
   /** varConstraint
@@ -86,11 +96,6 @@ object RDB2RDF {
 	}
       }
     }
-  }
-
-  def literalConstraint(lit:SparqlLiteral, attr:RelAliasAttribute):Expression = {
-    // println("equiv+= " + toString(attr) + "=" + lit)
-    Expression(List(PrimaryExpressionEq(attr,RValueTyped(SQLDatatype.INTEGER,Name(lit.lit.lexicalForm)))))
   }
 
   def toString(relaliasattr:RelAliasAttribute) : String = {
@@ -140,38 +145,59 @@ object RDB2RDF {
 	val target = db.relationdescs(rel).attributes(attr) match {
 	  case ForeignKey(fkrel, fkattr) => {
 	    o match {
-	      case OUri(u) => {
-		val oRelAlias = relAliasFromNode(u)
+	      case OLit(l) => {
 		// println(toString(objattr) + "->" + toString(RelAliasAttribute(oRelAlias, fkattr)))
 		// println(fkrel.n.s + " AS " + oRelAlias.n.s)
-		val ret = Some(uriConstraint(u, pk))
+
+		val oRelAlias = relAliasFromLiteral(l)
+		val fkaliasattr = RelAliasAttribute(oRelAlias, fkattr)
+		val joinconstraint = PrimaryExpressionEq(fkaliasattr,RValueAttr(objattr))
+
+		val conjuncts = List(joinconstraint) ::: literalConstraint(l, pk).conjuncts
 		joined contains(oRelAlias) match {
 		  case false => {
-		    joins = joins ::: List(Join(RelAsRelAlias(fkrel,oRelAlias), ret))
+		    joins = joins ::: List(Join(RelAsRelAlias(fkrel,oRelAlias), Some(Expression(conjuncts))))
+		    joined = joined + oRelAlias
+		  }
+		  case true => null
+		}		
+	      }
+	      case OUri(u) => {
+		// println(toString(objattr) + "->" + toString(RelAliasAttribute(oRelAlias, fkattr)))
+		// println(fkrel.n.s + " AS " + oRelAlias.n.s)
+
+		val oRelAlias = relAliasFromNode(u)
+		val fkaliasattr = RelAliasAttribute(oRelAlias, fkattr)
+		val joinconstraint = PrimaryExpressionEq(fkaliasattr,RValueAttr(objattr))
+
+		val conjuncts = List(joinconstraint) ::: uriConstraint(u, pk).conjuncts
+		joined contains(oRelAlias) match {
+		  case false => {
+		    joins = joins ::: List(Join(RelAsRelAlias(fkrel,oRelAlias), Some(Expression(conjuncts))))
 		    joined = joined + oRelAlias
 		  }
 		  case true => null
 		}
 	      }
 	      case OVar(v) => {
-		val oRelAlias = relAliasFromVar(v)
-		val fkaliasattr = RelAliasAttribute(oRelAlias, fkattr)
 		// println(toString(objattr) + "->" + toString(fkaliasattr))
-		val binding = varConstraint(v, db, fkrel, oRelAlias, fkattr)
-		varmap += v -> binding
 		// println(toString(binding))
 		// println(fkrel.n.s + " AS " + oRelAlias.n.s)
+
+		val oRelAlias = relAliasFromVar(v)
+		val fkaliasattr = RelAliasAttribute(oRelAlias, fkattr)
+		val joinconstraint = PrimaryExpressionEq(fkaliasattr,RValueAttr(objattr))
+
+		val binding = varConstraint(v, db, fkrel, oRelAlias, fkattr)
 		joined contains(oRelAlias) match {
 		  case false => {
-		    joins = joins ::: List(Join(RelAsRelAlias(fkrel,oRelAlias), 
-						Some(Expression(List(PrimaryExpressionEq(fkaliasattr,RValueAttr(objattr)))))))
+		    joins = joins ::: List(Join(RelAsRelAlias(fkrel,oRelAlias), Some(Expression(List(joinconstraint)))))
 		    joined = joined + oRelAlias
 		  }
 		  case true => null
 		}
-	      }
-	      case OLit(l) => {
-		literalConstraint(l, objattr) // !!! do something with constraint
+
+		varmap += v -> binding
 	      }
 	    }
 	  }
@@ -185,7 +211,7 @@ object RDB2RDF {
 		varmap += v -> binding
 		// println(toString(binding))
 	      }
-	      case OLit(l) => literalConstraint(l, objattr) // !!! do something with constraint
+	      case OLit(l) => literalConstraint(l, pk)
 	    }
 	  }
 	}

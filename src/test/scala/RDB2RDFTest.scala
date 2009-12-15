@@ -15,7 +15,7 @@ class RDB2RDFTest extends FunSuite {
 			 Attribute("address") -> ForeignKey(Relation("Address"),  Attribute("id"))))))
 
 
-  test("transform max joins") {
+  test("?s <p> <x>") {
     val sparqlParser = Sparql()
     val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
 SELECT ?emp {
@@ -26,8 +26,25 @@ SELECT ?emp {
     val sqlSelect = sqlParser.parseAll(sqlParser.select, """
 SELECT R_emp.id AS A_emp
        FROM Employee AS R_emp
-            INNER JOIN Employee AS id18 ON id18.id=18
-""").get // !!! id18.id=R_emp.manager
+            INNER JOIN Employee AS R_id18 ON R_id18.id=R_emp.manager AND R_id18.id=18
+""").get
+    assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id")))) === sqlSelect)
+    true
+  }
+
+  test("?s <p> 18") {
+    val sparqlParser = Sparql()
+    val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
+SELECT ?emp {
+?emp  <http://hr.example/DB/Employee#manager>    "18"^^<http://www.w3.org/2001/XMLSchema#integer>
+}
+""").get
+    val sqlParser = Sql()
+    val sqlSelect = sqlParser.parseAll(sqlParser.select, """
+SELECT R_emp.id AS A_emp
+       FROM Employee AS R_emp
+            INNER JOIN Employee AS R_18 ON R_18.id=R_emp.manager AND R_18.id=18
+""").get
     assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id")))) === sqlSelect)
     true
   }
