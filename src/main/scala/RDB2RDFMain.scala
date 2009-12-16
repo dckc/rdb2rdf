@@ -135,14 +135,15 @@ object RDB2RDF {
 	    List()
 	  }
 	}
-	val sjoin = joined contains(relalias) match {
+	joined contains(relalias) match {
 	  case false => {
 	    //joins = joins ::: List(Join(AliasedResource(rel,relalias), sconstraint))
 	    joined += relalias
-	    Some(AliasedResource(rel,relalias))
+	    joins = joins ::: List(AliasedResource(rel,relalias))
 	  }
-	  case true => None
+	  case true =>
 	}
+
 	val target = db.relationdescs(rel).attributes(attr) match {
 	  case ForeignKey(fkrel, fkattr) => {
 	    val oRelAlias = relAliasFromO(o)
@@ -179,21 +180,10 @@ object RDB2RDF {
 	    joined contains(oRelAlias) match {
 	      case false => {
 
-		sjoin match { // complex dance to keep joins ordered -- ouch!
-		  case Some(x) => joins = joins ::: List(x)
-		  case None => 
-		}
-
 		joins = joins ::: List(AliasedResource(fkrel,oRelAlias))
 		joined = joined + oRelAlias
 	      }
 	      case true => {
-		sjoin match {
-		  case Some(x) => {
-		    joins = joins ::: List(x)
-		  }
-		  case None => 
-		}
 	      }
 	    }
 	  }
@@ -208,11 +198,6 @@ object RDB2RDF {
 		varmap += v -> binding
 	      }
 	    }
-	    sjoin match {
-	      case Some(x) => joins = joins ::: List(x)
-	      case None => 
-	    }
-
 	  }
 	}
 
