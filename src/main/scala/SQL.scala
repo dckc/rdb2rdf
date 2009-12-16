@@ -13,7 +13,7 @@ case class AttrAlias(n:Name)
 case class Relation(n:Name)
 case class RelAlias(n:Name)
 case class TableList(joins:List[Join])
-case class Join(relasalias:RelAsRelAlias, expression:Expression)
+case class Join(relasalias:RelAsRelAlias)
 case class RelAsRelAlias(rel:Relation, as:RelAlias)
 case class Expression(conjuncts:List[PrimaryExpression])
 sealed abstract class PrimaryExpression
@@ -88,19 +88,7 @@ case class Sql() extends JavaTokenParsers {
     repsep(join, "INNER" ~ "JOIN") ^^ { TableList(_) }
 
   def join:Parser[Join] =
-    relasalias ~ opt(optexpr) ^^
-    {
-      case relasalias ~ optexpr => {
-	val expression:Expression = optexpr match {
-	  case None => Expression(List())
-	  case Some(f) => f
-	}
-	Join(relasalias, expression)
-      }
-    }
-
-  def optexpr:Parser[Expression] =
-    "ON" ~ expression ^^ { case "ON"~expression => expression }
+    relasalias ^^ { x => Join(x) }
 
   def relasalias:Parser[RelAsRelAlias] =
     relation ~ "AS" ~ relalias ^^

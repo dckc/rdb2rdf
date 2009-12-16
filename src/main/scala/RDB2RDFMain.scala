@@ -127,8 +127,8 @@ object RDB2RDF {
 	val objattr = RelAliasAttribute(relalias, attr)
 
 	// println(rel.n.s + " AS " + relalias.n.s)
-	val sconstraint:List[PrimaryExpression] = s match {
-	  case SUri(u) => List(uriConstraint(subjattr, u))
+	s match {
+	  case SUri(u) => exprs = exprs ::: List(uriConstraint(subjattr, u))
 	  case SVar(v) => {
 	    val binding:SQL2RDFValueMapper = varConstraint(subjattr, v, db, rel)
 	    varmap += v -> binding
@@ -174,16 +174,20 @@ object RDB2RDF {
 	      case false => {
 
 		sjoin match { // complex dance to keep joins ordered -- ouch!
-		  case Some(x) => joins = joins ::: List(Join(x, Expression(sconstraint)))
+		  case Some(x) => joins = joins ::: List(Join(x))
 		  case None => 
 		}
 
-		joins = joins ::: List(Join(RelAsRelAlias(fkrel,oRelAlias), Expression(conjuncts)))
+		exprs = exprs ::: conjuncts
+		joins = joins ::: List(Join(RelAsRelAlias(fkrel,oRelAlias)))
 		joined = joined + oRelAlias
 	      }
 	      case true => {
 		sjoin match {
-		  case Some(x) => joins = joins ::: List(Join(x, Expression(conjuncts)))
+		  case Some(x) => {
+		    exprs = exprs ::: conjuncts
+		    joins = joins ::: List(Join(x))
+		  }
 		  case None => 
 		}
 	      }
@@ -204,7 +208,7 @@ object RDB2RDF {
 	      }
 	    }
 	    sjoin match {
-	      case Some(x) => joins = joins ::: List(Join(x, Expression(sconstraint)))
+	      case Some(x) => joins = joins ::: List(Join(x))
 	      case None => 
 	    }
 
