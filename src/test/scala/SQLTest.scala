@@ -19,16 +19,16 @@ SELECT R_emp.lastName AS A_empName, R_manager.lastName AS A_managName
 					     NamedAttribute(RelAliasAttribute(RelAlias(Name("R_manager")),
 									      Attribute(Name("lastName"))),
 							    AttrAlias(Name("A_managName"))))),
-			  TableList(List(Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_emp"))),None),
+			  TableList(List(Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_emp"))),Expression(List())),
 					 Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_manager"))),
-					      Some(Expression(List(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_manager")),
-													 Attribute(Name("id"))),
-										       RValueAttr(RelAliasAttribute(RelAlias(Name("R_emp")),
-														    Attribute(Name("manager"))))))))))),
-			  Some(Expression(List(PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_emp")),
-											  Attribute(Name("lastName")))),
-					       PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_manager")),
-											  Attribute(Name("lastName"))))))))
+					      Expression(List(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_manager")),
+												    Attribute(Name("id"))),
+										  RValueAttr(RelAliasAttribute(RelAlias(Name("R_emp")),
+													       Attribute(Name("manager")))))))))),
+			  Expression(List(PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_emp")),
+										     Attribute(Name("lastName")))),
+					  PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_manager")),
+										     Attribute(Name("lastName")))))))
     assert(expected === (a.parseAll(a.select, e).get))
   }
 
@@ -42,12 +42,12 @@ SELECT R_emp.lastName AS A_empName
     val expected = Select(AttributeList(List(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_emp")),
 									      Attribute(Name("lastName"))),
 							    AttrAlias(Name("A_empName"))))),
-			  TableList(List(Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_emp"))),None))),
-			  Some(Expression(List(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_emp")),
-										     Attribute(Name("manager"))),
-								   RValueTyped(SQLDatatype.INTEGER,Name("18"))),
-					       PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_emp")),
-											  Attribute(Name("lastName"))))))))
+			  TableList(List(Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_emp"))),Expression(List())))),
+			  Expression(List(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_emp")),
+										Attribute(Name("manager"))),
+							      RValueTyped(SQLDatatype.INTEGER,Name("18"))),
+					  PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_emp")),
+										     Attribute(Name("lastName")))))))
     assert(expected === (a.parseAll(a.select, e).get))
   }
 
@@ -63,16 +63,16 @@ WHERE R_emp.lastName IS NOT NULL
     val expected = Select(AttributeList(List(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_emp")),
 									      Attribute(Name("lastName"))),
 							    AttrAlias(Name("A_empName"))))),
-			  TableList(List(Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_emp"))),None),
+			  TableList(List(Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_emp"))),Expression(List())),
 					 Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_manager"))),
-					      Some(Expression(List(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_emp")),
-													 Attribute(Name("manager"))),
-										       RValueAttr(RelAliasAttribute(RelAlias(Name("R_manager")),
-														    Attribute(Name("id"))))),
-								   PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_manager")),
-													 Attribute(Name("lastName"))),
-										       RValueTyped(SQLDatatype.STRING,Name("Johnson"))))))))),
-			  Some(Expression(List(PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("lastName"))))))))
+					      Expression(List(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_emp")),
+												    Attribute(Name("manager"))),
+										  RValueAttr(RelAliasAttribute(RelAlias(Name("R_manager")),
+													       Attribute(Name("id"))))),
+							      PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_manager")),
+												    Attribute(Name("lastName"))),
+										  RValueTyped(SQLDatatype.STRING,Name("Johnson")))))))),
+			  Expression(List(PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("lastName")))))))
     assert(expected === (a.parseAll(a.select, e).get))
   }
 
@@ -93,23 +93,23 @@ SELECT R_emp.lastName AS A_empName, R_grandManager.lastName AS A_grandManagName
 							    AttrAlias(Name("A_empName"))),
 					     NamedAttribute(RelAliasAttribute(RelAlias(Name("R_grandManager")),Attribute(Name("lastName"))),
 							    AttrAlias(Name("A_grandManagName"))))),
-			  TableList(List(Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_emp"))),None),
-					 Join(RelAsRelAlias(Relation(Name("Manage")),RelAlias(Name("R_lower"))),Some(Expression(List(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_lower")),Attribute(Name("manages"))),RValueAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("id"))))))))),
-					 Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_manager"))),Some(Expression(List(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id"))),RValueAttr(RelAliasAttribute(RelAlias(Name("R_lower")),Attribute(Name("manager"))))), PrimaryExpressionLt(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("birthday"))),RValueAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("birthday"))))))))),
-					 Join(RelAsRelAlias(Relation(Name("Manage")),RelAlias(Name("R_upper"))),Some(Expression(List(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_upper")),Attribute(Name("manages"))),RValueAttr(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id"))))))))),
+			  TableList(List(Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_emp"))),Expression(List())),
+					 Join(RelAsRelAlias(Relation(Name("Manage")),RelAlias(Name("R_lower"))),Expression(List(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_lower")),Attribute(Name("manages"))),RValueAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("id")))))))),
+					 Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_manager"))),Expression(List(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id"))),RValueAttr(RelAliasAttribute(RelAlias(Name("R_lower")),Attribute(Name("manager"))))), PrimaryExpressionLt(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("birthday"))),RValueAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("birthday")))))))),
+					 Join(RelAsRelAlias(Relation(Name("Manage")),RelAlias(Name("R_upper"))),Expression(List(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_upper")),Attribute(Name("manages"))),RValueAttr(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id")))))))),
 					 Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_grandManager"))),
-					      Some(Expression(List(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_grandManager")),
-													 Attribute(Name("id"))),
-										       RValueAttr(RelAliasAttribute(RelAlias(Name("R_upper")),
-														    Attribute(Name("manager"))))),
-								   PrimaryExpressionLt(RelAliasAttribute(RelAlias(Name("R_grandManager")),
-													 Attribute(Name("birthday"))),
-										       RValueAttr(RelAliasAttribute(RelAlias(Name("R_manager")),
-														    Attribute(Name("birthday"))))))))))),
-			  Some(Expression(List(PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_emp")),
-											  Attribute(Name("lastName")))),
-					       PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_grandManager")),
-											  Attribute(Name("lastName"))))))))
+					      Expression(List(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_grandManager")),
+												    Attribute(Name("id"))),
+										  RValueAttr(RelAliasAttribute(RelAlias(Name("R_upper")),
+													       Attribute(Name("manager"))))),
+							      PrimaryExpressionLt(RelAliasAttribute(RelAlias(Name("R_grandManager")),
+												    Attribute(Name("birthday"))),
+										  RValueAttr(RelAliasAttribute(RelAlias(Name("R_manager")),
+													       Attribute(Name("birthday")))))))))),
+			  Expression(List(PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_emp")),
+										     Attribute(Name("lastName")))),
+					  PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_grandManager")),
+										     Attribute(Name("lastName")))))))
     assert(expected === (a.parseAll(a.select, e).get))
   }
 

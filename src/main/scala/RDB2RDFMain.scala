@@ -49,14 +49,14 @@ object RDB2RDF {
     RelAlias(Name("R_" + v))
   }
 
-  def uriConstraint(constrainMe:RelAliasAttribute, u:ObjUri):Expression = {
+  def uriConstraint(constrainMe:RelAliasAttribute, u:ObjUri):PrimaryExpression = {
     // println("equiv+= " + toString(constrainMe) + "=" + value)
-    Expression(List(PrimaryExpressionEq(constrainMe,RValueTyped(SQLDatatype.INTEGER,Name(u.v.s)))))
+    PrimaryExpressionEq(constrainMe,RValueTyped(SQLDatatype.INTEGER,Name(u.v.s)))
   }
 
-  def literalConstraint(constrainMe:RelAliasAttribute, lit:SparqlLiteral, dt:SQLDatatype):Expression = {
+  def literalConstraint(constrainMe:RelAliasAttribute, lit:SparqlLiteral, dt:SQLDatatype):PrimaryExpression = {
     // println("equiv+= " + toString(attr) + "=" + lit)
-    Expression(List(PrimaryExpressionEq(constrainMe,RValueTyped(dt,Name(lit.lit.lexicalForm)))))
+    PrimaryExpressionEq(constrainMe,RValueTyped(dt,Name(lit.lit.lexicalForm)))
   }
 
   /** varConstraint
@@ -127,15 +127,12 @@ object RDB2RDF {
 	val objattr = RelAliasAttribute(relalias, attr)
 
 	// println(rel.n.s + " AS " + relalias.n.s)
-	val sconstraint:Option[Expression] = s match {
-	  case SUri(u) => {
-	    uriConstraint(subjattr, u)
-	    None
-	  }
+	val sconstraint:List[PrimaryExpression] = s match {
+	  case SUri(u) => List(uriConstraint(subjattr, u))
 	  case SVar(v) => {
 	    val binding:SQL2RDFValueMapper = varConstraint(subjattr, v, db, rel)
 	    varmap += v -> binding
-	    None
+	    List()
 	  }
 	}
 	val sjoin = joined contains(relalias) match {
@@ -162,9 +159,9 @@ object RDB2RDF {
 
 	      /* Literal foreign keys should probably throw an error,
 	       * instead does what user meant. */
-	      case OLit(l) => List(joinconstraint) ::: literalConstraint(fkaliasattr, l, dt).conjuncts
+	      case OLit(l) => List(joinconstraint) ::: List(literalConstraint(fkaliasattr, l, dt))
 
-	      case OUri(u) => List(joinconstraint) ::: uriConstraint(fkaliasattr, u).conjuncts
+	      case OUri(u) => List(joinconstraint) ::: List(uriConstraint(fkaliasattr, u))
 
 	      case OVar(v) => {
 		val binding = varConstraint(fkaliasattr, v, db, fkrel)
@@ -177,16 +174,16 @@ object RDB2RDF {
 	      case false => {
 
 		sjoin match { // complex dance to keep joins ordered -- ouch!
-		  case Some(x) => joins = joins ::: List(Join(x, sconstraint))
+		  case Some(x) => joins = joins ::: List(Join(x, Expression(sconstraint)))
 		  case None => 
 		}
 
-		joins = joins ::: List(Join(RelAsRelAlias(fkrel,oRelAlias), Some(Expression(conjuncts))))
+		joins = joins ::: List(Join(RelAsRelAlias(fkrel,oRelAlias), Expression(conjuncts)))
 		joined = joined + oRelAlias
 	      }
 	      case true => {
 		sjoin match {
-		  case Some(x) => joins = joins ::: List(Join(x, Some(Expression(conjuncts))))
+		  case Some(x) => joins = joins ::: List(Join(x, Expression(conjuncts)))
 		  case None => 
 		}
 	      }
@@ -195,8 +192,8 @@ object RDB2RDF {
 	  case Value(dt) => {
 	    o match {
 	      case OLit(l) => {
-		val c = literalConstraint(objattr, l, dt).conjuncts
-		exprs = exprs ::: c
+		val c = literalConstraint(objattr, l, dt)
+		exprs = exprs ::: List(c)
 	      }
 	      case OUri(u) => uriConstraint(objattr, u)
 	      case OVar(v) => {
@@ -207,7 +204,7 @@ object RDB2RDF {
 	      }
 	    }
 	    sjoin match {
-	      case Some(x) => joins = joins ::: List(Join(x, sconstraint))
+	      case Some(x) => joins = joins ::: List(Join(x, Expression(sconstraint)))
 	      case None => 
 	    }
 
@@ -313,16 +310,12 @@ object RDB2RDF {
     /* Add null guards for attributes associated with variables which
      * are not optional and have not been used in constraints. */
     r2rState.allVars.foreach(s => exprs = nullGuard(exprs, inConstraint, r2rState.varmap, s))
-    val where = exprs.size match {
-      case 0 => None
-      case _ => Some(Expression(exprs))
-    }
 
     /* Construct the generated query as an abstract syntax. */
     Select(
       AttributeList(attrlist),
       TableList(r2rState.joins),
-      where
+      Expression(exprs)
     )
   }
 }

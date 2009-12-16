@@ -3,7 +3,7 @@ package w3c.sw
 import scala.util.parsing.combinator._
 import java.net.URI
 
-case class Select(attributelist:AttributeList, tablelist:TableList, expression:Option[Expression])
+case class Select(attributelist:AttributeList, tablelist:TableList, expression:Expression)
 case class AttributeList(attributes:List[NamedAttribute])
 case class NamedAttribute(fqattribute:RelAliasAttribute, attralias:AttrAlias)
 //case class RelAttribute(relation:Relation, attribute:Attribute) c.f. ForeignKey
@@ -13,7 +13,7 @@ case class AttrAlias(n:Name)
 case class Relation(n:Name)
 case class RelAlias(n:Name)
 case class TableList(joins:List[Join])
-case class Join(relasalias:RelAsRelAlias, expression:Option[Expression])
+case class Join(relasalias:RelAsRelAlias, expression:Expression)
 case class RelAsRelAlias(rel:Relation, as:RelAlias)
 case class Expression(conjuncts:List[PrimaryExpression])
 sealed abstract class PrimaryExpression
@@ -47,8 +47,15 @@ case class Sql() extends JavaTokenParsers {
 
   def select:Parser[Select] =
     "SELECT" ~ attributelist ~ "FROM" ~ tablelist ~ opt(where) ^^
-    { case "SELECT" ~ attributes ~ "FROM" ~ tables ~ whereexpr =>
-      Select(attributes, tables, whereexpr) }
+    {
+      case "SELECT" ~ attributes ~ "FROM" ~ tables ~ whereexpr => {
+	val expression:Expression = whereexpr match {
+	  case None => Expression(List())
+	  case Some(f) => f
+	}
+	Select(attributes, tables, expression)
+      }
+    }
 
   def where:Parser[Expression] =
     "WHERE" ~ expression ^^ { case "WHERE" ~ expression => expression }
@@ -82,7 +89,15 @@ case class Sql() extends JavaTokenParsers {
 
   def join:Parser[Join] =
     relasalias ~ opt(optexpr) ^^
-    { case relasalias ~ optexpr => Join(relasalias, optexpr) }
+    {
+      case relasalias ~ optexpr => {
+	val expression:Expression = optexpr match {
+	  case None => Expression(List())
+	  case Some(f) => f
+	}
+	Join(relasalias, expression)
+      }
+    }
 
   def optexpr:Parser[Expression] =
     "ON" ~ expression ^^ { case "ON"~expression => expression }
