@@ -237,24 +237,27 @@ object RDB2RDF {
       case SparqlPrimaryExpressionEq(l, r) => (l.term, r.term, "==")
       case SparqlPrimaryExpressionLt(l, r) => (l.term, r.term, "<")
       }
-    val l = tup._1 match {
-      case TermUri(obj) => null // :ObjUri
+    tup._1 match {
+      case TermUri(obj) => error("only SPARQL PrimaryExpressions with a variable on the left have been implemented: punting on " + f)
       case TermVar(v) => { // :Var
 	inConstraint += v
-	varToAttribute(varmap, v)
+	val l = varToAttribute(varmap, v)
+	val r = tup._2 match {
+	  case TermUri(obj) => null // :ObjUri
+	  case TermVar(v) => { // :Var
+	    inConstraint += v
+	    RValueAttr(varToAttribute(varmap, v))
+	  }
+	  case TermLit(lit) => null // :SparqlLiteral => RValueTyped(SQLDatatype, lit.n)
+	}
+	exprs = exprs ::: List(tup._3 match {
+	  case "==" => PrimaryExpressionEq(l, r)
+	  case _ => PrimaryExpressionLt(l, r)
+	})
+	(exprs, inConstraint)
       }
-      case TermLit(lit) => null // :SparqlLiteral
+      case TermLit(lit) => error("only SPARQL PrimaryExpressions with a variable on the left have been implemented: punting on " + f)
     } 
-    val r = tup._2 match {
-      case TermUri(obj) => null // :ObjUri
-      case TermVar(v) => { // :Var
-	inConstraint += v
-	RValueAttr(varToAttribute(varmap, v))
-      }
-      case TermLit(lit) => null // :SparqlLiteral => RValueTyped(SQLDatatype, lit.n)
-    }
-    exprs = exprs ::: List(tup._3 match { case "==" => PrimaryExpressionEq(l, r) case _ => PrimaryExpressionLt(l, r) })
-    (exprs, inConstraint)
   }
 
   def nullGuard(exprs:List[PrimaryExpression], inConstraint:Set[Var], varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):List[PrimaryExpression] = {
