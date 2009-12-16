@@ -13,7 +13,7 @@ case class Int(relaliasattr:RelAliasAttribute) extends Binding
 case class Enum(relaliasattr:RelAliasAttribute) extends Binding
 
 object RDB2RDF {
-  case class R2RState(joined:Set[RelAlias], allVars:List[Var], inConstraint:Set[Var], joins:List[AliasedResource], varmap:Map[Var, SQL2RDFValueMapper], exprs:List[PrimaryExpression])
+  case class R2RState(joined:Set[RelAlias], allVars:List[Var], inConstraint:Set[Var], joins:List[AliasedResource], varmap:Map[Var, SQL2RDFValueMapper], exprs:Set[PrimaryExpression])
 
   sealed abstract class SQL2RDFValueMapper(relaliasattr:RelAliasAttribute)
   case class StringMapper(relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
@@ -128,7 +128,7 @@ object RDB2RDF {
 
 	// println(rel.n.s + " AS " + relalias.n.s)
 	s match {
-	  case SUri(u) => exprs = exprs ::: List(uriConstraint(subjattr, u))
+	  case SUri(u) => exprs += uriConstraint(subjattr, u)
 	  case SVar(v) => {
 	    val binding:SQL2RDFValueMapper = varConstraint(subjattr, v, db, rel)
 	    varmap += v -> binding
@@ -138,7 +138,7 @@ object RDB2RDF {
 	val sjoin = joined contains(relalias) match {
 	  case false => {
 	    //joins = joins ::: List(Join(AliasedResource(rel,relalias), sconstraint))
-	    joined = joined + relalias
+	    joined += relalias
 	    Some(AliasedResource(rel,relalias))
 	  }
 	  case true => None
@@ -159,14 +159,20 @@ object RDB2RDF {
 
 	      /* Literal foreign keys should probably throw an error,
 	       * instead does what user meant. */
-	      case OLit(l) => List(joinconstraint) ::: List(literalConstraint(fkaliasattr, l, dt))
+	      case OLit(l) => {
+		exprs += joinconstraint
+		exprs += literalConstraint(fkaliasattr, l, dt)
+	      }
 
-	      case OUri(u) => List(joinconstraint) ::: List(uriConstraint(fkaliasattr, u))
+	      case OUri(u) => {
+		exprs += joinconstraint
+		exprs += uriConstraint(fkaliasattr, u)
+	      }
 
 	      case OVar(v) => {
 		val binding = varConstraint(fkaliasattr, v, db, fkrel)
 		varmap += v -> binding
-		List(joinconstraint)
+		exprs += joinconstraint
 	      }
 	    }
 
@@ -178,14 +184,12 @@ object RDB2RDF {
 		  case None => 
 		}
 
-		exprs = exprs ::: conjuncts
 		joins = joins ::: List(AliasedResource(fkrel,oRelAlias))
 		joined = joined + oRelAlias
 	      }
 	      case true => {
 		sjoin match {
 		  case Some(x) => {
-		    exprs = exprs ::: conjuncts
 		    joins = joins ::: List(x)
 		  }
 		  case None => 
@@ -195,10 +199,7 @@ object RDB2RDF {
 	  }
 	  case Value(dt) => {
 	    o match {
-	      case OLit(l) => {
-		val c = literalConstraint(objattr, l, dt)
-		exprs = exprs ::: List(c)
-	      }
+	      case OLit(l) => exprs += literalConstraint(objattr, l, dt)
 	      case OUri(u) => uriConstraint(objattr, u)
 	      case OVar(v) => {
 		allVars = allVars ::: List(v)
@@ -229,7 +230,7 @@ object RDB2RDF {
     }
   }
 
-  def filter(exprsP:List[PrimaryExpression], inConstraintP:Set[Var], varmap:Map[Var, SQL2RDFValueMapper], f:SparqlPrimaryExpression):Tuple2[List[PrimaryExpression], Set[Var]] = {
+  def filter(exprsP:Set[PrimaryExpression], inConstraintP:Set[Var], varmap:Map[Var, SQL2RDFValueMapper], f:SparqlPrimaryExpression):Tuple2[Set[PrimaryExpression], Set[Var]] = {
     var exprs = exprsP
     var inConstraint = inConstraintP
     // var f = SparqlPrimaryExpressionEq
@@ -251,17 +252,17 @@ object RDB2RDF {
 	  }
 	  case TermLit(lit) => null // :SparqlLiteral => RValueTyped(SQLDatatype, lit.n)
 	}
-	exprs = exprs ::: List(tup._3 match {
-	  case "==" => PrimaryExpressionEq(l, r)
-	  case _ => PrimaryExpressionLt(l, r)
-	})
+	tup._3 match {
+	  case "==" => exprs += PrimaryExpressionEq(l, r)
+	  case _ => exprs += PrimaryExpressionLt(l, r)
+	}
 	(exprs, inConstraint)
       }
       case TermLit(lit) => error("only SPARQL PrimaryExpressions with a variable on the left have been implemented: punting on " + f)
     } 
   }
 
-  def nullGuard(exprs:List[PrimaryExpression], inConstraint:Set[Var], varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):List[PrimaryExpression] = {
+  def nullGuard(exprs:Set[PrimaryExpression], inConstraint:Set[Var], varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):Set[PrimaryExpression] = {
     var ret = exprs
     inConstraint contains(vvar) match {
       case false => {
@@ -271,7 +272,7 @@ object RDB2RDF {
 	  case IntMapper(relalias) => relalias
 	  case RDFNoder(relation, relalias) => relalias
 	}
-	ret = ret ::: List(PrimaryExpressionNotNull(aattr))
+	ret += PrimaryExpressionNotNull(aattr)
       }
       case true => 
     }
@@ -288,7 +289,7 @@ object RDB2RDF {
       Set[Var](), 
       List[AliasedResource](), 
       Map[Var, SQL2RDFValueMapper](), 
-      List[PrimaryExpression]()
+      Set[PrimaryExpression]()
     )
 
     /* Examine each triple, updating the compilation state. */
@@ -301,7 +302,7 @@ object RDB2RDF {
       NamedAttribute(varToAttribute(r2rState.varmap, vvar), AttrAlias(Name("A_" + vvar.s)))
     ))
 
-    var exprs:List[PrimaryExpression] = r2rState.exprs
+    var exprs:Set[PrimaryExpression] = r2rState.exprs
     var inConstraint:Set[Var] = r2rState.inConstraint
 
     /* Add constraints for all the FILTERS */

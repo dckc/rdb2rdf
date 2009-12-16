@@ -21,7 +21,7 @@ SELECT R_emp.lastName AS A_empName, R_manager.lastName AS A_managName
 							    AttrAlias(Name("A_managName"))))),
 			  TableList(List(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp"))),
 					 AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_manager"))))),
-			  Expression(List(
+			  Expression(Set(
 			    PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id"))),
 						RValueAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("manager"))))),
 			    PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("lastName")))),
@@ -40,7 +40,7 @@ SELECT R_emp.lastName AS A_empName
 									      Attribute(Name("lastName"))),
 							    AttrAlias(Name("A_empName"))))),
 			  TableList(List(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp"))))),
-			  Expression(List(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("manager"))),
+			  Expression(Set(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("manager"))),
 							      RValueTyped(SQLDatatype.INTEGER,Name("18"))),
 					  PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("lastName")))))))
     assert(expected === (a.parseAll(a.select, e).get))
@@ -59,7 +59,7 @@ WHERE R_emp.manager=R_manager.id AND R_manager.lastName="Johnson" AND R_emp.last
 							    AttrAlias(Name("A_empName"))))),
 			  TableList(List(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp"))),
 					 AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_manager"))))),
-			  Expression(List(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("manager"))),
+			  Expression(Set(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("manager"))),
 							      RValueAttr(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id"))))),
 					  PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("lastName"))),
 							      RValueTyped(SQLDatatype.STRING,Name("Johnson"))),
@@ -91,7 +91,7 @@ SELECT R_emp.lastName AS A_empName, R_grandManager.lastName AS A_grandManagName
 					 AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_manager"))),
 					 AliasedResource(Relation(Name("Manage")),RelAlias(Name("R_upper"))),
 					 AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_grandManager"))))),
-			  Expression(List(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_lower")),Attribute(Name("manages"))),
+			  Expression(Set(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_lower")),Attribute(Name("manages"))),
 							      RValueAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("id"))))),
 					  PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id"))),
 							      RValueAttr(RelAliasAttribute(RelAlias(Name("R_lower")),Attribute(Name("manager"))))),

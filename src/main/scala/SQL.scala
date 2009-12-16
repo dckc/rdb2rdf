@@ -14,7 +14,7 @@ case class Relation(n:Name)
 case class RelAlias(n:Name)
 case class TableList(joins:List[AliasedResource])
 case class AliasedResource(rel:Relation, as:RelAlias)
-case class Expression(conjuncts:List[PrimaryExpression])
+case class Expression(conjuncts:Set[PrimaryExpression])
 sealed abstract class PrimaryExpression
 case class PrimaryExpressionEq(l:RelAliasAttribute, r:RValue) extends PrimaryExpression
 case class PrimaryExpressionLt(l:RelAliasAttribute, r:RValue) extends PrimaryExpression
@@ -49,7 +49,7 @@ case class Sql() extends JavaTokenParsers {
     {
       case "SELECT" ~ attributes ~ "FROM" ~ tables ~ whereexpr => {
 	val expression:Expression = whereexpr match {
-	  case None => Expression(List())
+	  case None => Expression(Set())
 	  case Some(f) => f
 	}
 	Select(attributes, tables, expression)
@@ -92,7 +92,7 @@ case class Sql() extends JavaTokenParsers {
 
   def expression:Parser[Expression] = 
     repsep(primaryexpression, "AND") ^^ 
-    { Expression(_) }
+    { m => Expression(m.toSet) }
 
   def primaryexpression:Parser[PrimaryExpression] = (
       fqattribute ~ "=" ~ rvalue ^^
