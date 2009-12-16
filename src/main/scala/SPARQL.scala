@@ -14,7 +14,7 @@ import MyParsers._
 case class SparqlSelect(attrs:SparqlAttributeList, triples:TriplePatterns)
 case class SparqlAttributeList(attributelist:List[Var])
 
-case class TriplePatterns(triplepatterns:List[TriplePattern], filter:Option[SparqlExpression])
+case class TriplePatterns(triplepatterns:List[TriplePattern], filter:SparqlExpression)
 case class TriplePattern(s:S, p:P, o:O)
 
 case class ObjUri(stem:Stem, rel:Rel, attr:Attr, v:CellValue)
@@ -83,7 +83,14 @@ case class Sparql() extends JavaTokenParsers {
     rep(varr) ^^ { SparqlAttributeList(_) }
 
   def triplepatterns:Parser[TriplePatterns] =
-    repsep(triplepattern, ".") ~ opt(filter) ^^ { case pats~filter => TriplePatterns(pats, filter) }
+    repsep(triplepattern, ".") ~ opt(filter) ^^ {
+      case pats~filter =>
+	val sparqlExpression:SparqlExpression = filter match {
+	  case None => SparqlExpression(List())
+	  case Some(f) => f
+	}
+      TriplePatterns(pats, sparqlExpression)
+    }
 
   def triplepattern:Parser[TriplePattern] =
     subject ~ predicate ~ objectt ^^ { case s~p~o => TriplePattern(s, p, o) }

@@ -10,7 +10,7 @@ class SparqlTest extends FunSuite {
     val e = """
 ?emp      <http://hr.example/DB/Employee#lastName>   "bob"^^<http://www.w3.org/2001/XMLSchema#string>
 """
-    val expected = TriplePatterns(List(TriplePattern(SVar(Var("emp")),PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")),OLit(SparqlLiteral(RDFLiteral("bob",Datatype(new URI("http://www.w3.org/2001/XMLSchema#string"))))))), None)
+    val expected = TriplePatterns(List(TriplePattern(SVar(Var("emp")),PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")),OLit(SparqlLiteral(RDFLiteral("bob",Datatype(new URI("http://www.w3.org/2001/XMLSchema#string"))))))), SparqlExpression(List()))
     assert(expected === (a.parseAll(a.triplepatterns, e).get))
   }
 
@@ -19,7 +19,7 @@ class SparqlTest extends FunSuite {
     val e = """
 ?emp      <http://hr.example/DB/Employee#age>   "21"^^<http://www.w3.org/2001/XMLSchema#integer>
 """
-    val expected = TriplePatterns(List(TriplePattern(SVar(Var("emp")),PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("age")),OLit(SparqlLiteral(RDFLiteral("21",Datatype(new URI("http://www.w3.org/2001/XMLSchema#integer"))))))), None)
+    val expected = TriplePatterns(List(TriplePattern(SVar(Var("emp")),PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("age")),OLit(SparqlLiteral(RDFLiteral("21",Datatype(new URI("http://www.w3.org/2001/XMLSchema#integer"))))))), SparqlExpression(List()))
     assert(expected === (a.parseAll(a.triplepatterns, e).get))
   }
 
@@ -44,7 +44,7 @@ class SparqlTest extends FunSuite {
 	  TriplePattern(
 	    SVar(Var("manager")),
 	    PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")),
-	    OVar(Var("managName")))), None)
+	    OVar(Var("managName")))), SparqlExpression(List()))
     assert(tps === a.parseAll(a.triplepatterns, e).get)
   }
 
@@ -106,11 +106,11 @@ FILTER(?manBday < ?empBday && ?grandManBday < ?manBday)
 	      SVar(Var("emp")),
 		PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")),
 	      OVar(Var("empName")))), 
-	  Some(SparqlExpression(List(
+	  SparqlExpression(List(
 	    SparqlPrimaryExpressionLt(SparqlTermExpression(TermVar(Var("manBday"))),
 				      SparqlTermExpression(TermVar(Var("empBday")))), 
 	    SparqlPrimaryExpressionLt(SparqlTermExpression(TermVar(Var("grandManBday"))),
-				      SparqlTermExpression(TermVar(Var("manBday")))))))))
+				      SparqlTermExpression(TermVar(Var("manBday"))))))))
     assert(tps === a.parseAll(a.select, e).get)
   }
 
@@ -139,7 +139,7 @@ SELECT ?empName ?manageName {
 	    TriplePattern(
 	      SVar(Var("manager")),
 	      PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")),
-	      OVar(Var("managName")))), None))
+	      OVar(Var("managName")))), SparqlExpression(List())))
     assert(tps === a.parseAll(a.select, e).get)
   }
 

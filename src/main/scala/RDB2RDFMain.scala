@@ -304,14 +304,11 @@ object RDB2RDF {
     var inConstraint:Set[Var] = r2rState.inConstraint
 
     /* Add constraints for all the FILTERS */
-    triples.filter match {
-      case Some(x) => x.conjuncts.foreach(f => {
+    triples.filter.conjuncts.foreach(f => {
 	val pair = filter(exprs, inConstraint, r2rState.varmap, f)
 	exprs = pair._1
 	inConstraint = pair._2
       })
-      case None => 
-    }
 
     /* Add null guards for attributes associated with variables which
      * are not optional and have not been used in constraints. */
