@@ -144,13 +144,11 @@ SELECT ?empName ?grandManagName {
     val sqlSelect = sqlParser.parseAll(sqlParser.select, """
 SELECT R_emp.lastName AS A_empName, R_grandManager.lastName AS A_grandManagName
   FROM Employee AS R_emp
-       INNER JOIN Manage AS R_lower ON R_lower.manages=R_emp.id
+       INNER JOIN Manage AS R_lower ON R_emp.id=R_lower.manages
        INNER JOIN Employee AS R_manager ON R_manager.id=R_lower.manager
-                                         AND R_manager.birthday < R_emp.birthday
-       INNER JOIN Manage AS R_upper ON R_upper.manages=R_manager.id
+       INNER JOIN Manage AS R_upper ON R_manager.id=R_upper.manages
        INNER JOIN Employee AS R_grandManager ON R_grandManager.id=R_upper.manager
-                                         AND R_grandManager.birthday < R_manager.birthday
- WHERE R_emp.lastName IS NOT NULL AND R_grandManager.lastName IS NOT NULL
+ WHERE R_manager.birthday < R_emp.birthday AND R_grandManager.birthday < R_manager.birthday AND R_emp.lastName IS NOT NULL AND R_grandManager.lastName IS NOT NULL
 """).get
     assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id")))) === sqlSelect)
   }

@@ -130,22 +130,21 @@ object RDB2RDF {
 	val sconstraint:Option[Expression] = s match {
 	  case SUri(u) => {
 	    uriConstraint(subjattr, u)
-	    // joins = joins ::: List(Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_emp"))),None))
 	    None
 	  }
 	  case SVar(v) => {
 	    val binding:SQL2RDFValueMapper = varConstraint(subjattr, v, db, rel)
 	    varmap += v -> binding
-	    // println(toString(binding))
 	    None
 	  }
 	}
-	joined contains(relalias) match {
+	val sjoin = joined contains(relalias) match {
 	  case false => {
-	    joins = joins ::: List(Join(RelAsRelAlias(rel,relalias), sconstraint))
+	    //joins = joins ::: List(Join(RelAsRelAlias(rel,relalias), sconstraint))
 	    joined = joined + relalias
+	    Some(RelAsRelAlias(rel,relalias))
 	  }
-	  case true => null
+	  case true => None
 	}
 	val target = db.relationdescs(rel).attributes(attr) match {
 	  case ForeignKey(fkrel, fkattr) => {
@@ -176,10 +175,21 @@ object RDB2RDF {
 
 	    joined contains(oRelAlias) match {
 	      case false => {
+
+		sjoin match { // complex dance to keep joins ordered -- ouch!
+		  case Some(x) => joins = joins ::: List(Join(x, sconstraint))
+		  case None => 
+		}
+
 		joins = joins ::: List(Join(RelAsRelAlias(fkrel,oRelAlias), Some(Expression(conjuncts))))
 		joined = joined + oRelAlias
 	      }
-	      case true => null
+	      case true => {
+		sjoin match {
+		  case Some(x) => joins = joins ::: List(Join(x, Some(Expression(conjuncts))))
+		  case None => 
+		}
+	      }
 	    }
 	  }
 	  case Value(dt) => {
@@ -196,6 +206,11 @@ object RDB2RDF {
 		varmap += v -> binding
 	      }
 	    }
+	    sjoin match {
+	      case Some(x) => joins = joins ::: List(Join(x, sconstraint))
+	      case None => 
+	    }
+
 	  }
 	}
 
@@ -205,18 +220,45 @@ object RDB2RDF {
     R2RState(joined, allVars, inConstraint, joins, varmap, exprs)
   }
 
-  def project(varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):NamedAttribute = {
-    val mapper:SQL2RDFValueMapper = varmap(vvar)
-    val aattr = mapper match {
+  def varToAttribute(varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):RelAliasAttribute = {
+    varmap(vvar) match {
       case StringMapper(relalias) => relalias
       case IntMapper(relalias) => relalias
       case RDFNoder(relation, relalias) => relalias
     }
-    NamedAttribute(aattr, AttrAlias(Name("A_" + vvar.s)))
   }
 
-  def nullGuard(notNulls:List[PrimaryExpression], inConstraint:Set[Var], varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):List[PrimaryExpression] = {
-    var ret = notNulls
+  def filter(exprsP:List[PrimaryExpression], inConstraintP:Set[Var], varmap:Map[Var, SQL2RDFValueMapper], f:SparqlPrimaryExpression):Tuple2[List[PrimaryExpression], Set[Var]] = {
+    var exprs = exprsP
+    var inConstraint = inConstraintP
+    // var f = SparqlPrimaryExpressionEq
+    // val e:SparqlPrimaryExpression = f(SparqlTermExpression(Term(TermVar(Var("a")))), SparqlTermExpression(Term(TermVar(Var("a")))))
+    val tup:Tuple3[Term, Term, String] = f match {
+      case SparqlPrimaryExpressionEq(l, r) => (l.term, r.term, "==")
+      case SparqlPrimaryExpressionLt(l, r) => (l.term, r.term, "<")
+      }
+    val l = tup._1 match {
+      case TermUri(obj) => null // :ObjUri
+      case TermVar(v) => { // :Var
+	inConstraint += v
+	varToAttribute(varmap, v)
+      }
+      case TermLit(lit) => null // :SparqlLiteral
+    } 
+    val r = tup._2 match {
+      case TermUri(obj) => null // :ObjUri
+      case TermVar(v) => { // :Var
+	inConstraint += v
+	RValueAttr(varToAttribute(varmap, v))
+      }
+      case TermLit(lit) => null // :SparqlLiteral => RValueTyped(SQLDatatype, lit.n)
+    }
+    exprs = exprs ::: List(tup._3 match { case "==" => PrimaryExpressionEq(l, r) case _ => PrimaryExpressionLt(l, r) })
+    (exprs, inConstraint)
+  }
+
+  def nullGuard(exprs:List[PrimaryExpression], inConstraint:Set[Var], varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):List[PrimaryExpression] = {
+    var ret = exprs
     inConstraint contains(vvar) match {
       case false => {
 	val mapper:SQL2RDFValueMapper = varmap(vvar)
@@ -227,7 +269,7 @@ object RDB2RDF {
 	}
 	ret = ret ::: List(PrimaryExpressionNotNull(aattr))
       }
-      case true => null
+      case true => 
     }
     ret
   }
@@ -251,15 +293,29 @@ object RDB2RDF {
     /* Select the attributes corresponding to the variables
      * in the SPARQL SELECT.  */
     var attrlist:List[NamedAttribute] = List()
-    attrs.attributelist.foreach(s => attrlist = attrlist ::: List(project(r2rState.varmap, s)))
+    attrs.attributelist.foreach(vvar => attrlist = attrlist ::: List(
+      NamedAttribute(varToAttribute(r2rState.varmap, vvar), AttrAlias(Name("A_" + vvar.s)))
+    ))
+
+    var exprs:List[PrimaryExpression] = r2rState.exprs
+    var inConstraint:Set[Var] = r2rState.inConstraint
+
+    /* Add constraints for all the FILTERS */
+    triples.filter match {
+      case Some(x) => x.conjuncts.foreach(f => {
+	val pair = filter(exprs, inConstraint, r2rState.varmap, f)
+	exprs = pair._1
+	inConstraint = pair._2
+      })
+      case None => 
+    }
 
     /* Add null guards for attributes associated with variables which
      * are not optional and have not been used in constraints. */
-    var notNulls:List[PrimaryExpression] = r2rState.exprs
-    r2rState.allVars.foreach(s => notNulls = nullGuard(notNulls, r2rState.inConstraint, r2rState.varmap, s))
-    val where = notNulls.size match {
+    r2rState.allVars.foreach(s => exprs = nullGuard(exprs, inConstraint, r2rState.varmap, s))
+    val where = exprs.size match {
       case 0 => None
-      case _ => Some(Expression(notNulls))
+      case _ => Some(Expression(exprs))
     }
 
     /* Construct the generated query as an abstract syntax. */
