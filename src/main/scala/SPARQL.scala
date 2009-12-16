@@ -14,7 +14,7 @@ import MyParsers._
 case class SparqlSelect(attrs:SparqlAttributeList, triples:TriplePatterns)
 case class SparqlAttributeList(attributelist:List[Var])
 
-case class TriplePatterns(triplepatterns:List[TriplePattern])
+case class TriplePatterns(triplepatterns:List[TriplePattern], filter:Option[SparqlExpression])
 case class TriplePattern(s:S, p:P, o:O)
 
 case class ObjUri(stem:Stem, rel:Rel, attr:Attr, v:CellValue)
@@ -42,16 +42,48 @@ case class Rel(s:String)
 
 case class Var(s:String)
 
+case class SparqlExpression(conjuncts:List[SparqlPrimaryExpression])
+sealed abstract class SparqlPrimaryExpression
+case class SparqlPrimaryExpressionEq(left:SparqlTermExpression, right:SparqlTermExpression) extends SparqlPrimaryExpression
+case class SparqlPrimaryExpressionLt(left:SparqlTermExpression, right:SparqlTermExpression) extends SparqlPrimaryExpression
+case class SparqlTermExpression(term:Term)
+
+sealed abstract class Term
+case class TermUri(obj:ObjUri) extends Term
+case class TermVar(v:Var) extends Term
+case class TermLit(lit:SparqlLiteral) extends Term
+
+
 case class Sparql() extends JavaTokenParsers {
 
   def select:Parser[SparqlSelect] =
     "SELECT" ~ attributelist ~ "{" ~ triplepatterns ~ "}" ^^ { case "SELECT"~a~"{"~t~"}" => SparqlSelect(a, t) }
 
+  def filter:Parser[SparqlExpression] =
+    "FILTER" ~ "(" ~ expression ~ ")" ^^ { case "FILTER"~"("~expression~")" => expression }
+
+  def expression:Parser[SparqlExpression] = 
+    repsep(primaryexpression, "&&") ^^ 
+    { SparqlExpression(_) }
+
+  def primaryexpression:Parser[SparqlPrimaryExpression] = (
+      value ~ "=" ~ value ^^
+      { case left ~ "=" ~ right => SparqlPrimaryExpressionEq(left, right) }
+    | value ~ "<" ~ value ^^
+      { case left ~ "<" ~ right => SparqlPrimaryExpressionLt(left, right) }
+  )
+
+  def value:Parser[SparqlTermExpression] = (
+      "<"~uri~">" ^^ { case "<"~x~">" => SparqlTermExpression(TermUri(Sparql.parseObjectURI(x))) }
+    | varr ^^ { x => SparqlTermExpression(TermVar(x)) }
+    | literal ^^ { x => SparqlTermExpression(TermLit(x)) }
+  )
+
   def attributelist:Parser[SparqlAttributeList] =
     rep(varr) ^^ { SparqlAttributeList(_) }
 
   def triplepatterns:Parser[TriplePatterns] =
-    repsep(triplepattern, ".") ^^ { TriplePatterns(_) }
+    repsep(triplepattern, ".") ~ opt(filter) ^^ { case pats~filter => TriplePatterns(pats, filter) }
 
   def triplepattern:Parser[TriplePattern] =
     subject ~ predicate ~ objectt ^^ { case s~p~o => TriplePattern(s, p, o) }

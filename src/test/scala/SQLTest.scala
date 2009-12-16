@@ -82,10 +82,10 @@ WHERE R_emp.lastName IS NOT NULL
 SELECT R_emp.lastName AS A_empName, R_grandManager.lastName AS A_grandManagName
   FROM Employee AS R_emp
        INNER JOIN Manage AS R_lower ON R_lower.manages=R_emp.id
-       INNER JOIN Employee AS R_manager ON R_manager.id=R_lower.R_manager
+       INNER JOIN Employee AS R_manager ON R_manager.id=R_lower.manager
                                          AND R_manager.birthday < R_emp.birthday
        INNER JOIN Manage AS R_upper ON R_upper.manages=R_manager.id
-       INNER JOIN Employee AS R_grandManager ON R_grandManager.id=R_upper.R_manager
+       INNER JOIN Employee AS R_grandManager ON R_grandManager.id=R_upper.manager
                                          AND R_grandManager.birthday < R_manager.birthday
  WHERE R_emp.lastName IS NOT NULL AND R_grandManager.lastName IS NOT NULL
 """
@@ -95,13 +95,13 @@ SELECT R_emp.lastName AS A_empName, R_grandManager.lastName AS A_grandManagName
 							    AttrAlias(Name("A_grandManagName"))))),
 			  TableList(List(Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_emp"))),None),
 					 Join(RelAsRelAlias(Relation(Name("Manage")),RelAlias(Name("R_lower"))),Some(Expression(List(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_lower")),Attribute(Name("manages"))),RValueAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("id"))))))))),
-					 Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_manager"))),Some(Expression(List(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id"))),RValueAttr(RelAliasAttribute(RelAlias(Name("R_lower")),Attribute(Name("R_manager"))))), PrimaryExpressionLt(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("birthday"))),RValueAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("birthday"))))))))),
+					 Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_manager"))),Some(Expression(List(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id"))),RValueAttr(RelAliasAttribute(RelAlias(Name("R_lower")),Attribute(Name("manager"))))), PrimaryExpressionLt(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("birthday"))),RValueAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("birthday"))))))))),
 					 Join(RelAsRelAlias(Relation(Name("Manage")),RelAlias(Name("R_upper"))),Some(Expression(List(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_upper")),Attribute(Name("manages"))),RValueAttr(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id"))))))))),
 					 Join(RelAsRelAlias(Relation(Name("Employee")),RelAlias(Name("R_grandManager"))),
 					      Some(Expression(List(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_grandManager")),
 													 Attribute(Name("id"))),
 										       RValueAttr(RelAliasAttribute(RelAlias(Name("R_upper")),
-														    Attribute(Name("R_manager"))))),
+														    Attribute(Name("manager"))))),
 								   PrimaryExpressionLt(RelAliasAttribute(RelAlias(Name("R_grandManager")),
 													 Attribute(Name("birthday"))),
 										       RValueAttr(RelAliasAttribute(RelAlias(Name("R_manager")),
