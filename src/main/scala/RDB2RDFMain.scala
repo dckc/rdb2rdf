@@ -13,7 +13,7 @@ case class Int(relaliasattr:RelAliasAttribute) extends Binding
 case class Enum(relaliasattr:RelAliasAttribute) extends Binding
 
 object RDB2RDF {
-  case class R2RState(joined:Set[RelAlias], allVars:List[Var], inConstraint:Set[Var], joins:List[Join], varmap:Map[Var, SQL2RDFValueMapper], exprs:List[PrimaryExpression])
+  case class R2RState(joined:Set[RelAlias], allVars:List[Var], inConstraint:Set[Var], joins:List[AliasedResource], varmap:Map[Var, SQL2RDFValueMapper], exprs:List[PrimaryExpression])
 
   sealed abstract class SQL2RDFValueMapper(relaliasattr:RelAliasAttribute)
   case class StringMapper(relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
@@ -137,9 +137,9 @@ object RDB2RDF {
 	}
 	val sjoin = joined contains(relalias) match {
 	  case false => {
-	    //joins = joins ::: List(Join(RelAsRelAlias(rel,relalias), sconstraint))
+	    //joins = joins ::: List(Join(AliasedResource(rel,relalias), sconstraint))
 	    joined = joined + relalias
-	    Some(RelAsRelAlias(rel,relalias))
+	    Some(AliasedResource(rel,relalias))
 	  }
 	  case true => None
 	}
@@ -174,19 +174,19 @@ object RDB2RDF {
 	      case false => {
 
 		sjoin match { // complex dance to keep joins ordered -- ouch!
-		  case Some(x) => joins = joins ::: List(Join(x))
+		  case Some(x) => joins = joins ::: List(x)
 		  case None => 
 		}
 
 		exprs = exprs ::: conjuncts
-		joins = joins ::: List(Join(RelAsRelAlias(fkrel,oRelAlias)))
+		joins = joins ::: List(AliasedResource(fkrel,oRelAlias))
 		joined = joined + oRelAlias
 	      }
 	      case true => {
 		sjoin match {
 		  case Some(x) => {
 		    exprs = exprs ::: conjuncts
-		    joins = joins ::: List(Join(x))
+		    joins = joins ::: List(x)
 		  }
 		  case None => 
 		}
@@ -208,7 +208,7 @@ object RDB2RDF {
 	      }
 	    }
 	    sjoin match {
-	      case Some(x) => joins = joins ::: List(Join(x))
+	      case Some(x) => joins = joins ::: List(x)
 	      case None => 
 	    }
 
@@ -286,7 +286,7 @@ object RDB2RDF {
       Set[RelAlias](), 
       List[Var](), 
       Set[Var](), 
-      List[Join](), 
+      List[AliasedResource](), 
       Map[Var, SQL2RDFValueMapper](), 
       List[PrimaryExpression]()
     )

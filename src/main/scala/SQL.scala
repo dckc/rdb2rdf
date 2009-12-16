@@ -12,9 +12,8 @@ case class Attribute(n:Name)
 case class AttrAlias(n:Name)
 case class Relation(n:Name)
 case class RelAlias(n:Name)
-case class TableList(joins:List[Join])
-case class Join(relasalias:RelAsRelAlias)
-case class RelAsRelAlias(rel:Relation, as:RelAlias)
+case class TableList(joins:List[AliasedResource])
+case class AliasedResource(rel:Relation, as:RelAlias)
 case class Expression(conjuncts:List[PrimaryExpression])
 sealed abstract class PrimaryExpression
 case class PrimaryExpressionEq(l:RelAliasAttribute, r:RValue) extends PrimaryExpression
@@ -85,14 +84,11 @@ case class Sql() extends JavaTokenParsers {
     """[a-zA-Z_]\w*""".r ^^ { x => RelAlias(Name(x)) }
 
   def tablelist:Parser[TableList] =
-    repsep(join, "INNER" ~ "JOIN") ^^ { TableList(_) }
+    repsep(aliasedjoin, "INNER" ~ "JOIN") ^^ { TableList(_) }
 
-  def join:Parser[Join] =
-    relasalias ^^ { x => Join(x) }
-
-  def relasalias:Parser[RelAsRelAlias] =
+  def aliasedjoin:Parser[AliasedResource] =
     relation ~ "AS" ~ relalias ^^
-    { case rel1 ~ "AS" ~ rel2 => RelAsRelAlias(rel1, rel2) }
+    { case rel1 ~ "AS" ~ rel2 => AliasedResource(rel1, rel2) }
 
   def expression:Parser[Expression] = 
     repsep(primaryexpression, "AND") ^^ 
