@@ -165,9 +165,11 @@ object RDB2RDF {
 	      case OLit(l) => exprs += literalConstraint(objattr, l, dt)
 	      case OUri(u) => exprs += uriConstraint(objattr, u)
 	      case OVar(v) => {
-		// !! 2nd+ ref implies constraint
 		val binding = varConstraint(objattr, v, db, rel)
-		varmap += v -> binding
+		if (varmap.contains(v))
+		  exprs += PrimaryExpressionEq(varToAttribute(varmap, v), RValueAttr(objattr))
+		else
+		  varmap += v -> binding
 	      }
 	    }
 	  }
