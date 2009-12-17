@@ -111,9 +111,6 @@ object RDB2RDF {
       case RDFNoder(relation, relalias) => "RDFNoder: " + relation.n.s + ", " + toString(relalias)
     }
   }
-  // def toString(relaliasattr:RelAttribute) : String = {
-  //   "[" + relaliasattr.relation.n.s + "]" + relaliasattr.attribute.n.s
-  // }
 
   def acc(db:DatabaseDesc, state:R2RState, triple:TriplePattern, pk:PrimaryKey):R2RState = {
     var R2RState(allVars, inConstraint, joins, varmap, exprs) = state
@@ -132,7 +129,6 @@ object RDB2RDF {
 	  case SVar(v) => {
 	    val binding:SQL2RDFValueMapper = varConstraint(subjattr, v, db, rel)
 	    varmap += v -> binding
-	    List()
 	  }
 	}
 	joins += AliasedResource(rel,relalias)
@@ -141,7 +137,7 @@ object RDB2RDF {
 	  case ForeignKey(fkrel, fkattr) => {
 	    val oRelAlias = relAliasFromO(o)
 	    val fkaliasattr = RelAliasAttribute(oRelAlias, fkattr)
-	    val joinconstraint = PrimaryExpressionEq(fkaliasattr,RValueAttr(objattr))
+	    exprs += PrimaryExpressionEq(fkaliasattr,RValueAttr(objattr))
 
 	    var dt = db.relationdescs(fkrel).attributes(fkattr) match {
 	      case ForeignKey(dfkrel, dfkattr) => error("foreign key " + rel.n + "." + attr.n + 
@@ -153,20 +149,11 @@ object RDB2RDF {
 
 	      /* Literal foreign keys should probably throw an error,
 	       * instead does what user meant. */
-	      case OLit(l) => {
-		exprs += joinconstraint
-		exprs += literalConstraint(fkaliasattr, l, dt)
-	      }
-
-	      case OUri(u) => {
-		exprs += joinconstraint
-		exprs += uriConstraint(fkaliasattr, u)
-	      }
-
+	      case OLit(l) => exprs += literalConstraint(fkaliasattr, l, dt)
+	      case OUri(u) => exprs += uriConstraint(fkaliasattr, u)
 	      case OVar(v) => {
 		val binding = varConstraint(fkaliasattr, v, db, fkrel)
 		varmap += v -> binding
-		exprs += joinconstraint
 	      }
 	    }
 
@@ -175,7 +162,7 @@ object RDB2RDF {
 	  case Value(dt) => {
 	    o match {
 	      case OLit(l) => exprs += literalConstraint(objattr, l, dt)
-	      case OUri(u) => uriConstraint(objattr, u)
+	      case OUri(u) => exprs += uriConstraint(objattr, u)
 	      case OVar(v) => {
 		allVars = allVars ::: List(v)
 		// !! 2nd+ ref implies constraint
@@ -185,7 +172,6 @@ object RDB2RDF {
 	    }
 	  }
 	}
-
       }
       case PVar(v) => error("variable predicates require tedious enumeration; too tedious for me.")
     }
