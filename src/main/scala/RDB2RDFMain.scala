@@ -201,8 +201,8 @@ object RDB2RDF {
 
   def filter(exprsP:Set[PrimaryExpression], varmap:Map[Var, SQL2RDFValueMapper], f:SparqlPrimaryExpression):Set[PrimaryExpression] = {
     var exprs = exprsP
-    val tup:Tuple3[Term, Term, String] = f match {
-      case SparqlPrimaryExpressionEq(l, r) => (l.term, r.term, "==")
+    val tup:(Term, Term, String) = f match {
+      case SparqlPrimaryExpressionEq(l, r) => (l.term, r.term, "==") // Alex, how can i return PrimaryExpressionEq here?
       case SparqlPrimaryExpressionLt(l, r) => (l.term, r.term, "<")
       }
     tup._1 match {
