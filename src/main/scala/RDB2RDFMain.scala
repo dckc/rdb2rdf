@@ -49,14 +49,14 @@ object RDB2RDF {
     RelAlias(Name("R_" + v))
   }
 
-  def uriConstraint(constrainMe:RelAliasAttribute, u:ObjUri):PrimaryExpression = {
+  def uriConstraint(state:R2RState, constrainMe:RelAliasAttribute, u:ObjUri):R2RState = {
     // println("equiv+= " + toString(constrainMe) + "=" + value)
-    PrimaryExpressionEq(constrainMe,RValueTyped(SQLDatatype.INTEGER,Name(u.v.s)))
+    R2RState(state.joins, state.varmap, state.exprs + PrimaryExpressionEq(constrainMe,RValueTyped(SQLDatatype.INTEGER,Name(u.v.s))))    
   }
 
-  def literalConstraint(constrainMe:RelAliasAttribute, lit:SparqlLiteral, dt:SQLDatatype):PrimaryExpression = {
+  def literalConstraint(state:R2RState, constrainMe:RelAliasAttribute, lit:SparqlLiteral, dt:SQLDatatype):R2RState = {
     // println("equiv+= " + toString(attr) + "=" + lit)
-    PrimaryExpressionEq(constrainMe,RValueTyped(dt,Name(lit.lit.lexicalForm)))
+    R2RState(state.joins, state.varmap, state.exprs + PrimaryExpressionEq(constrainMe,RValueTyped(dt,Name(lit.lit.lexicalForm))))    
   }
 
   /** varConstraint
@@ -79,25 +79,33 @@ object RDB2RDF {
    * type String -> RDFStringConstructor // adds ^^xsd:string
    * type primary key -> RDFNodeConstructor // prefixes with stemURL + relation + attribute  and adds #record
    * */
-  def varConstraint(constrainMe:RelAliasAttribute, v:Var, db:DatabaseDesc, rel:Relation):SQL2RDFValueMapper = {
+  def varConstraint(state:R2RState, constrainMe:RelAliasAttribute, v:Var, db:DatabaseDesc, rel:Relation):R2RState = {
     /* e.g.                                 Employee      _emp.id            
     **                                      Employee      _emp.lastName      
     **                                      Employee      _emp.manager       
     */
     val reldesc = db.relationdescs(rel)
-    reldesc.primarykey match {
-      case Attribute(constrainMe.attribute.n) => 
-	RDFNoder(rel, constrainMe)
-      case _ => {
-	reldesc.attributes(constrainMe.attribute) match {
-	  case ForeignKey(fkrel, fkattr) =>
-	    RDFNoder(rel, constrainMe)
-	  case Value(SQLDatatype("String")) =>
-	    StringMapper(constrainMe)
-	  case Value(SQLDatatype("Int")) =>
-	    IntMapper(constrainMe)
+    if (state.varmap.contains(v)) {
+      if (varToAttribute(state.varmap, v) == constrainMe)
+	state /* Don't bother stipulating that foo.bar=foo.bar . */
+      else
+	R2RState(state.joins, state.varmap, state.exprs + PrimaryExpressionEq(varToAttribute(state.varmap, v), RValueAttr(constrainMe)))
+    } else {
+      val binding = reldesc.primarykey match {
+	case Attribute(constrainMe.attribute.n) => 
+	  RDFNoder(rel, constrainMe)
+	case _ => {
+	  reldesc.attributes(constrainMe.attribute) match {
+	    case ForeignKey(fkrel, fkattr) =>
+	      RDFNoder(rel, constrainMe)
+	    case Value(SQLDatatype("String")) =>
+	      StringMapper(constrainMe)
+	    case Value(SQLDatatype("Int")) =>
+	      IntMapper(constrainMe)
+	  }
 	}
       }
+      R2RState(state.joins, state.varmap + (v -> binding), state.exprs)
     }
   }
 
@@ -112,9 +120,9 @@ object RDB2RDF {
     }
   }
 
-  def acc(db:DatabaseDesc, state:R2RState, triple:TriplePattern, pk:PrimaryKey):R2RState = {
-    var R2RState(joins, varmap, exprs) = state
+  def acc(db:DatabaseDesc, stateP:R2RState, triple:TriplePattern, pk:PrimaryKey):R2RState = {
     val TriplePattern(s, p, o) = triple
+    var state = stateP
     p match {
       case PVar(v) => error("variable predicates require tedious enumeration; too tedious for me.")
       case PUri(stem, spRel, spAttr) => {
@@ -124,21 +132,17 @@ object RDB2RDF {
 	val subjattr = RelAliasAttribute(relalias, pk.attr)
 	val objattr = RelAliasAttribute(relalias, attr)
 
-	// println(rel.n.s + " AS " + relalias.n.s)
 	s match {
-	  case SUri(u) => exprs += uriConstraint(subjattr, u)
-	  case SVar(v) => {
-	    val binding:SQL2RDFValueMapper = varConstraint(subjattr, v, db, rel)
-	    varmap += v -> binding
-	  }
+	  case SUri(u) => state = uriConstraint(state, subjattr, u)
+	  case SVar(v) => state = varConstraint(state, subjattr, v, db, rel)
 	}
-	joins += AliasedResource(rel,relalias)
+	state = R2RState(state.joins + AliasedResource(rel,relalias), state.varmap, state.exprs)
 
 	db.relationdescs(rel).attributes(attr) match {
 	  case ForeignKey(fkrel, fkattr) => {
 	    val oRelAlias = relAliasFromO(o)
 	    val fkaliasattr = RelAliasAttribute(oRelAlias, fkattr)
-	    exprs += PrimaryExpressionEq(fkaliasattr,RValueAttr(objattr))
+	    state = R2RState(state.joins, state.varmap, state.exprs + PrimaryExpressionEq(fkaliasattr,RValueAttr(objattr)))
 
 	    var dt = db.relationdescs(fkrel).attributes(fkattr) match {
 	      case ForeignKey(dfkrel, dfkattr) => error("foreign key " + rel.n + "." + attr.n + 
@@ -150,34 +154,25 @@ object RDB2RDF {
 
 	      /* Literal foreign keys should probably throw an error,
 	       * instead does what user meant. */
-	      case OLit(l) => exprs += literalConstraint(fkaliasattr, l, dt)
-	      case OUri(u) => exprs += uriConstraint(fkaliasattr, u)
-	      case OVar(v) => {
-		val binding = varConstraint(fkaliasattr, v, db, fkrel)
-		varmap += v -> binding
-	      }
+	      case OLit(l) => state = literalConstraint(state, fkaliasattr, l, dt)
+	      case OUri(u) => state = uriConstraint(state, fkaliasattr, u)
+	      case OVar(v) => state = varConstraint(state, fkaliasattr, v, db, fkrel)
 	    }
 
-	    joins += AliasedResource(fkrel,oRelAlias)
+	    state = R2RState(state.joins + AliasedResource(fkrel,oRelAlias), state.varmap, state.exprs)
 	  }
 	  case Value(dt) => {
 	    o match {
-	      case OLit(l) => exprs += literalConstraint(objattr, l, dt)
-	      case OUri(u) => exprs += uriConstraint(objattr, u)
-	      case OVar(v) => {
-		val binding = varConstraint(objattr, v, db, rel)
-		if (varmap.contains(v))
-		  exprs += PrimaryExpressionEq(varToAttribute(varmap, v), RValueAttr(objattr))
-		else
-		  varmap += v -> binding
-	      }
+	      case OLit(l) => state = literalConstraint(state, objattr, l, dt)
+	      case OUri(u) => state = uriConstraint(state, objattr, u)
+	      case OVar(v) => state = varConstraint(state, objattr, v, db, rel)
 	    }
 	  }
 	}
       }
 
     }
-    R2RState(joins, varmap, exprs)
+    state
   }
 
   def findVars(triple:TriplePattern):Set[Var] = {
@@ -201,42 +196,40 @@ object RDB2RDF {
     }
   }
 
-  def filter(exprsP:Set[PrimaryExpression], varmap:Map[Var, SQL2RDFValueMapper], f:SparqlPrimaryExpression):Set[PrimaryExpression] = {
-    var exprs = exprsP
-    val tup:(Term, Term, String) = f match {
-      case SparqlPrimaryExpressionEq(l, r) => (l.term, r.term, "==") // Alex, how can i return PrimaryExpressionEq here?
-      case SparqlPrimaryExpressionLt(l, r) => (l.term, r.term, "<")
+  def filter(varmap:Map[Var, SQL2RDFValueMapper], f:SparqlPrimaryExpression):PrimaryExpression = {
+    val (lTerm:Term, rTerm:Term, sqlexpr:((RelAliasAttribute,RValueAttr)=>PrimaryExpression)) = f match {
+      case SparqlPrimaryExpressionEq(l, r) => (l.term, r.term, PrimaryExpressionEq(_,_)) // Alex, how can i return PrimaryExpressionEq here?
+      case SparqlPrimaryExpressionLt(l, r) => (l.term, r.term, PrimaryExpressionLt(_,_))
       }
-    tup._1 match {
+// PrimaryExpressionEq(_,_) === (x,y) => PrymaryExpressionEq(x,y)
+    lTerm match {
+      // does not handle FILTER (<x> = ?v)
       case TermUri(obj) => error("only SPARQL PrimaryExpressions with a variable on the left have been implemented: punting on " + f)
+      // FILTER (?v = <x> && ?v = ?x && ?v = 7)
       case TermVar(v) => { // :Var
 	val l = varToAttribute(varmap, v)
-	val r = tup._2 match {
+	val r = rTerm match {
 	  case TermUri(obj) => null // :ObjUri
 	  case TermVar(v) => { // :Var
 	    RValueAttr(varToAttribute(varmap, v))
 	  }
 	  case TermLit(lit) => null // :SparqlLiteral => RValueTyped(SQLDatatype, lit.n)
 	}
-	tup._3 match {
-	  case "==" => exprs += PrimaryExpressionEq(l, r)
-	  case _ => exprs += PrimaryExpressionLt(l, r)
-	}
-	exprs
+	sqlexpr(l, r)
       }
+      // does not handle FILTER (7 = ?v)
       case TermLit(lit) => error("only SPARQL PrimaryExpressions with a variable on the left have been implemented: punting on " + f)
-    } 
+    }
   }
 
-  def nullGuard(exprs:Set[PrimaryExpression], varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):Set[PrimaryExpression] = {
-    var ret = exprs
+  def nullGuard(varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):PrimaryExpression = {
     val mapper:SQL2RDFValueMapper = varmap(vvar)
     val aattr = mapper match {
       case StringMapper(relalias) => relalias
       case IntMapper(relalias) => relalias
       case RDFNoder(relation, relalias) => relalias
     }
-    ret + PrimaryExpressionNotNull(aattr)
+    PrimaryExpressionNotNull(aattr)
   }
 
   def apply (db:DatabaseDesc, sparql:SparqlSelect, stem:StemURI, pk:PrimaryKey) : Select = {
@@ -261,20 +254,19 @@ object RDB2RDF {
 
     /* Add constraints for all the FILTERS */
 
-    def it(exprs:Set[PrimaryExpression], primaryExpr:SparqlPrimaryExpression) = {
-      filter(exprs, r2rState.varmap, primaryExpr)
-    }
-
-    val exprs = triples.filter.conjuncts.foldLeft(r2rState.exprs)(it(_, _))
+    val filterExprs:Set[PrimaryExpression] =
+      triples.filter.conjuncts.toSet map ((x:SparqlPrimaryExpression) => filter(r2rState.varmap, x))
 
     val allVars:Set[Var] = triples.triplepatterns.foldLeft(Set[Var]())((x, y) => x ++ findVars(y))
-    val exprWithNull = allVars.foldLeft(exprs)((exprs,s) => nullGuard(exprs, r2rState.varmap, s))
+    val nullExprs = allVars map (nullGuard(r2rState.varmap, _))
+    //val exprWithNull = allVars.foldLeft(exprs)((exprs,s) => nullGuard(exprs, r2rState.varmap, s))
 
     /* Construct the generated query as an abstract syntax. */
     Select(
       AttributeList(attrlist),
       TableList(r2rState.joins),
-      Expression(exprWithNull)
+      Expression(r2rState.exprs ++ filterExprs ++ nullExprs)
+//      Expression(exprWithNull)
     )
   }
 }

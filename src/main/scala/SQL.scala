@@ -3,33 +3,67 @@ package w3c.sw
 import scala.util.parsing.combinator._
 import java.net.URI
 
-case class Select(attributelist:AttributeList, tablelist:TableList, expression:Expression)
-case class AttributeList(attributes:Set[NamedAttribute])
-case class NamedAttribute(fqattribute:RelAliasAttribute, attralias:AttrAlias)
+case class Select(attributelist:AttributeList, tablelist:TableList, expression:Expression) {
+  override def toString = attributelist+"\n"+tablelist+"\n"+expression
+}
+case class AttributeList(attributes:Set[NamedAttribute]) {
+  // foo, bar
+  override def toString = "SELECT "+(attributes mkString (",\n       "))
+}
+case class NamedAttribute(fqattribute:RelAliasAttribute, attralias:AttrAlias) {
+  override def toString = fqattribute + " AS " + attralias
+}
 //case class RelAttribute(relation:Relation, attribute:Attribute) c.f. ForeignKey
-case class RelAliasAttribute(relalias:RelAlias, attribute:Attribute)
-case class Attribute(n:Name)
-case class AttrAlias(n:Name)
-case class Relation(n:Name)
-case class RelAlias(n:Name)
-case class TableList(joins:Set[AliasedResource])
-case class AliasedResource(rel:Relation, as:RelAlias)
-case class Expression(conjuncts:Set[PrimaryExpression])
+case class RelAliasAttribute(relalias:RelAlias, attribute:Attribute) {
+  override def toString = relalias + "." + attribute
+}
+case class Attribute(n:Name) {
+  override def toString = "'" + n.s + "'"
+}
+case class AttrAlias(n:Name) {
+  override def toString = "'" + n.s + "'"
+}
+case class Relation(n:Name) {
+  override def toString = "'" + n.s + "'"
+}
+case class RelAlias(n:Name) {
+  override def toString = "'" + n.s + "'"
+}
+case class TableList(joins:Set[AliasedResource]) {
+  override def toString = "  FROM " + (joins mkString ("\n       INNER JOIN "))
+}
+case class AliasedResource(rel:Relation, as:RelAlias) {
+  override def toString = rel + " AS " + as
+}
+case class Expression(conjuncts:Set[PrimaryExpression]) {
+  override def toString = " WHERE " + (conjuncts mkString ("\n       AND "))
+}
 sealed abstract class PrimaryExpression
-case class PrimaryExpressionEq(l:RelAliasAttribute, r:RValue) extends PrimaryExpression
-case class PrimaryExpressionLt(l:RelAliasAttribute, r:RValue) extends PrimaryExpression
-case class PrimaryExpressionNotNull(l:RelAliasAttribute) extends PrimaryExpression
+case class PrimaryExpressionEq(l:RelAliasAttribute, r:RValue) extends PrimaryExpression {
+  override def toString = l + "=" + r
+}
+case class PrimaryExpressionLt(l:RelAliasAttribute, r:RValue) extends PrimaryExpression {
+  override def toString = l + "<" + r
+}
+case class PrimaryExpressionNotNull(l:RelAliasAttribute) extends PrimaryExpression {
+  override def toString = l + " IS NOT NULL"
+}
 sealed abstract class RValue
-case class RValueAttr(fqattribute:RelAliasAttribute) extends RValue
-case class RValueTyped(datatype:SQLDatatype, i:Name) extends RValue
+case class RValueAttr(fqattribute:RelAliasAttribute) extends RValue {
+  override def toString = "" + fqattribute
+}
+case class RValueTyped(datatype:SQLDatatype, i:Name) extends RValue {
+  override def toString = "'" + i.s + "'" + datatype
+}
 case class Name(s:String)
 
 object Name {
   implicit def fromStringToName(s:String):Name = Name(s)
 }
 
-case class SQLDatatype(name:String)
-
+case class SQLDatatype(name:String) {
+  override def toString = "/* " + name + " */"
+}
 object SQLDatatype {
   val STRING = SQLDatatype("String")
   val INTEGER = SQLDatatype("Int")
