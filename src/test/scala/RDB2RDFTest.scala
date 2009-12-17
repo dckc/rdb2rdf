@@ -43,7 +43,7 @@ SELECT ?emp {
 SELECT R_emp.id AS A_emp
        FROM Employee AS R_emp
             INNER JOIN Employee AS R_id18
- WHERE R_id18.id=R_emp.manager AND R_id18.id=18
+ WHERE R_id18.id=R_emp.manager AND R_id18.id=18 AND R_emp.id IS NOT NULL
 """).get
     assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id")))) === sqlSelect)
     true
@@ -63,7 +63,7 @@ SELECT ?emp {
 SELECT R_emp.id AS A_emp
        FROM Employee AS R_emp
             INNER JOIN Employee AS R_18
- WHERE R_18.id=R_emp.manager AND R_18.id=18
+ WHERE R_18.id=R_emp.manager AND R_18.id=18 AND R_emp.id IS NOT NULL
 """).get
     assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id")))) === sqlSelect)
     true
@@ -84,6 +84,8 @@ SELECT R_emp.lastName AS A_empName, R_manager.lastName AS A_manageName
        FROM Employee AS R_emp
             INNER JOIN Employee AS R_manager
  WHERE R_manager.id=R_emp.manager AND R_emp.lastName IS NOT NULL AND R_manager.lastName IS NOT NULL
+ AND R_emp.id IS NOT NULL
+ AND R_manager.id IS NOT NULL
 """).get
     assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id")))) === sqlSelect)
   }
@@ -102,6 +104,7 @@ SELECT R_emp.lastName AS A_empName
        FROM Employee AS R_emp
             INNER JOIN Employee AS R_id18
  WHERE R_id18.id=R_emp.manager AND R_id18.id=18 AND R_emp.lastName IS NOT NULL
+ AND R_emp.id IS NOT NULL
 """).get
     assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id")))) === sqlSelect)
   }
@@ -122,6 +125,8 @@ SELECT R_emp.lastName AS A_empName
   FROM Employee AS R_emp
        INNER JOIN Employee AS R_manager
 WHERE R_manager.id=R_emp.manager AND R_manager.lastName="Johnson" AND R_emp.lastName IS NOT NULL
+ AND R_emp.id IS NOT NULL
+ AND R_manager.id IS NOT NULL
 """).get
     assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id")))) === sqlSelect)
   }
@@ -151,6 +156,14 @@ SELECT R_emp.lastName AS A_empName, R_grandManager.lastName AS A_grandManagName
        INNER JOIN Manage AS R_upper
        INNER JOIN Employee AS R_grandManager
  WHERE R_emp.id=R_lower.manages AND R_manager.id=R_lower.manager AND R_manager.id=R_upper.manages AND R_grandManager.id=R_upper.manager AND R_manager.birthday < R_emp.birthday AND R_grandManager.birthday < R_manager.birthday AND R_emp.lastName IS NOT NULL AND R_grandManager.lastName IS NOT NULL
+ AND R_emp.id IS NOT NULL
+ AND R_lower.id IS NOT NULL
+ AND R_manager.id IS NOT NULL
+ AND R_upper.id IS NOT NULL
+ AND R_grandManager.id IS NOT NULL
+ AND R_emp.birthday IS NOT NULL
+ AND R_manager.birthday IS NOT NULL
+ AND R_grandManager.birthday IS NOT NULL
 """).get
     assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id")))) === sqlSelect)
   }

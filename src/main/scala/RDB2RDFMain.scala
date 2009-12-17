@@ -13,7 +13,7 @@ case class Int(relaliasattr:RelAliasAttribute) extends Binding
 case class Enum(relaliasattr:RelAliasAttribute) extends Binding
 
 object RDB2RDF {
-  case class R2RState(allVars:Set[Var], inConstraint:Set[Var], joins:Set[AliasedResource], varmap:Map[Var, SQL2RDFValueMapper], exprs:Set[PrimaryExpression])
+  case class R2RState(joins:Set[AliasedResource], varmap:Map[Var, SQL2RDFValueMapper], exprs:Set[PrimaryExpression])
 
   sealed abstract class SQL2RDFValueMapper(relaliasattr:RelAliasAttribute)
   case class StringMapper(relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
@@ -113,9 +113,10 @@ object RDB2RDF {
   }
 
   def acc(db:DatabaseDesc, state:R2RState, triple:TriplePattern, pk:PrimaryKey):R2RState = {
-    var R2RState(allVars, inConstraint, joins, varmap, exprs) = state
+    var R2RState(joins, varmap, exprs) = state
     val TriplePattern(s, p, o) = triple
     p match {
+      case PVar(v) => error("variable predicates require tedious enumeration; too tedious for me.")
       case PUri(stem, spRel, spAttr) => {
 	val rel = Relation(Name(spRel.s))
 	val attr = Attribute(Name(spAttr.s))
@@ -133,7 +134,7 @@ object RDB2RDF {
 	}
 	joins += AliasedResource(rel,relalias)
 
-	val target = db.relationdescs(rel).attributes(attr) match {
+	db.relationdescs(rel).attributes(attr) match {
 	  case ForeignKey(fkrel, fkattr) => {
 	    val oRelAlias = relAliasFromO(o)
 	    val fkaliasattr = RelAliasAttribute(oRelAlias, fkattr)
@@ -164,7 +165,6 @@ object RDB2RDF {
 	      case OLit(l) => exprs += literalConstraint(objattr, l, dt)
 	      case OUri(u) => exprs += uriConstraint(objattr, u)
 	      case OVar(v) => {
-		allVars += v
 		// !! 2nd+ ref implies constraint
 		val binding = varConstraint(objattr, v, db, rel)
 		varmap += v -> binding
@@ -173,9 +173,22 @@ object RDB2RDF {
 	  }
 	}
       }
-      case PVar(v) => error("variable predicates require tedious enumeration; too tedious for me.")
+
     }
-    R2RState(allVars, inConstraint, joins, varmap, exprs)
+    R2RState(joins, varmap, exprs)
+  }
+
+  def findVars(triple:TriplePattern):Set[Var] = {
+    val TriplePattern(s, p, o) = triple
+    val varS:Set[Var] = s match {
+      case SVar(v) => Set(v)
+      case _       => Set()
+    }
+    val varO:Set[Var] = o match {
+      case OVar(v) => Set(v)
+      case _       => Set()
+    }
+    varS ++ varO
   }
 
   def varToAttribute(varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):RelAliasAttribute = {
@@ -186,11 +199,8 @@ object RDB2RDF {
     }
   }
 
-  def filter(exprsP:Set[PrimaryExpression], inConstraintP:Set[Var], varmap:Map[Var, SQL2RDFValueMapper], f:SparqlPrimaryExpression):Tuple2[Set[PrimaryExpression], Set[Var]] = {
+  def filter(exprsP:Set[PrimaryExpression], varmap:Map[Var, SQL2RDFValueMapper], f:SparqlPrimaryExpression):Set[PrimaryExpression] = {
     var exprs = exprsP
-    var inConstraint = inConstraintP
-    // var f = SparqlPrimaryExpressionEq
-    // val e:SparqlPrimaryExpression = f(SparqlTermExpression(Term(TermVar(Var("a")))), SparqlTermExpression(Term(TermVar(Var("a")))))
     val tup:Tuple3[Term, Term, String] = f match {
       case SparqlPrimaryExpressionEq(l, r) => (l.term, r.term, "==")
       case SparqlPrimaryExpressionLt(l, r) => (l.term, r.term, "<")
@@ -198,12 +208,10 @@ object RDB2RDF {
     tup._1 match {
       case TermUri(obj) => error("only SPARQL PrimaryExpressions with a variable on the left have been implemented: punting on " + f)
       case TermVar(v) => { // :Var
-	inConstraint += v
 	val l = varToAttribute(varmap, v)
 	val r = tup._2 match {
 	  case TermUri(obj) => null // :ObjUri
 	  case TermVar(v) => { // :Var
-	    inConstraint += v
 	    RValueAttr(varToAttribute(varmap, v))
 	  }
 	  case TermLit(lit) => null // :SparqlLiteral => RValueTyped(SQLDatatype, lit.n)
@@ -212,27 +220,21 @@ object RDB2RDF {
 	  case "==" => exprs += PrimaryExpressionEq(l, r)
 	  case _ => exprs += PrimaryExpressionLt(l, r)
 	}
-	(exprs, inConstraint)
+	exprs
       }
       case TermLit(lit) => error("only SPARQL PrimaryExpressions with a variable on the left have been implemented: punting on " + f)
     } 
   }
 
-  def nullGuard(exprs:Set[PrimaryExpression], inConstraint:Set[Var], varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):Set[PrimaryExpression] = {
+  def nullGuard(exprs:Set[PrimaryExpression], varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):Set[PrimaryExpression] = {
     var ret = exprs
-    inConstraint contains(vvar) match {
-      case false => {
-	val mapper:SQL2RDFValueMapper = varmap(vvar)
-	val aattr = mapper match {
-	  case StringMapper(relalias) => relalias
-	  case IntMapper(relalias) => relalias
-	  case RDFNoder(relation, relalias) => relalias
-	}
-	ret += PrimaryExpressionNotNull(aattr)
-      }
-      case true => 
+    val mapper:SQL2RDFValueMapper = varmap(vvar)
+    val aattr = mapper match {
+      case StringMapper(relalias) => relalias
+      case IntMapper(relalias) => relalias
+      case RDFNoder(relation, relalias) => relalias
     }
-    ret
+    ret + PrimaryExpressionNotNull(aattr)
   }
 
   def apply (db:DatabaseDesc, sparql:SparqlSelect, stem:StemURI, pk:PrimaryKey) : Select = {
@@ -240,8 +242,6 @@ object RDB2RDF {
 
     /* Create an object to hold our compilation state. */
     var r2rState = R2RState(
-      Set[Var](), 
-      Set[Var](), 
       Set[AliasedResource](), 
       Map[Var, SQL2RDFValueMapper](), 
       Set[PrimaryExpression]()
@@ -257,25 +257,22 @@ object RDB2RDF {
       NamedAttribute(varToAttribute(r2rState.varmap, vvar), AttrAlias(Name("A_" + vvar.s)))
     )
 
-    var exprs:Set[PrimaryExpression] = r2rState.exprs
-    var inConstraint:Set[Var] = r2rState.inConstraint
-
     /* Add constraints for all the FILTERS */
-    triples.filter.conjuncts.foreach(f => {
-	val pair = filter(exprs, inConstraint, r2rState.varmap, f)
-	exprs = pair._1
-	inConstraint = pair._2
-      })
 
-    /* Add null guards for attributes associated with variables which
-     * are not optional and have not been used in constraints. */
-    r2rState.allVars.foreach(s => exprs = nullGuard(exprs, inConstraint, r2rState.varmap, s))
+    def it(exprs:Set[PrimaryExpression], primaryExpr:SparqlPrimaryExpression) = {
+      filter(exprs, r2rState.varmap, primaryExpr)
+    }
+
+    val exprs = triples.filter.conjuncts.foldLeft(r2rState.exprs)(it(_, _))
+
+    val allVars:Set[Var] = triples.triplepatterns.foldLeft(Set[Var]())((x, y) => x ++ findVars(y))
+    val exprWithNull = allVars.foldLeft(exprs)((exprs,s) => nullGuard(exprs, r2rState.varmap, s))
 
     /* Construct the generated query as an abstract syntax. */
     Select(
       AttributeList(attrlist),
       TableList(r2rState.joins),
-      Expression(exprs)
+      Expression(exprWithNull)
     )
   }
 }
