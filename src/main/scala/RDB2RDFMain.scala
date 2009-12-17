@@ -13,7 +13,7 @@ case class Int(relaliasattr:RelAliasAttribute) extends Binding
 case class Enum(relaliasattr:RelAliasAttribute) extends Binding
 
 object RDB2RDF {
-  case class R2RState(joined:Set[RelAlias], allVars:List[Var], inConstraint:Set[Var], joins:Set[AliasedResource], varmap:Map[Var, SQL2RDFValueMapper], exprs:Set[PrimaryExpression])
+  case class R2RState(allVars:List[Var], inConstraint:Set[Var], joins:Set[AliasedResource], varmap:Map[Var, SQL2RDFValueMapper], exprs:Set[PrimaryExpression])
 
   sealed abstract class SQL2RDFValueMapper(relaliasattr:RelAliasAttribute)
   case class StringMapper(relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
@@ -116,7 +116,7 @@ object RDB2RDF {
   // }
 
   def acc(db:DatabaseDesc, state:R2RState, triple:TriplePattern, pk:PrimaryKey):R2RState = {
-    var R2RState(joined, allVars, inConstraint, joins, varmap, exprs) = state
+    var R2RState(allVars, inConstraint, joins, varmap, exprs) = state
     val TriplePattern(s, p, o) = triple
     p match {
       case PUri(stem, spRel, spAttr) => {
@@ -135,14 +135,7 @@ object RDB2RDF {
 	    List()
 	  }
 	}
-	joined contains(relalias) match {
-	  case false => {
-	    //joins = joins ::: List(Join(AliasedResource(rel,relalias), sconstraint))
-	    joined += relalias
-	    joins += AliasedResource(rel,relalias)
-	  }
-	  case true =>
-	}
+	joins += AliasedResource(rel,relalias)
 
 	val target = db.relationdescs(rel).attributes(attr) match {
 	  case ForeignKey(fkrel, fkattr) => {
@@ -177,15 +170,7 @@ object RDB2RDF {
 	      }
 	    }
 
-	    joined contains(oRelAlias) match {
-	      case false => {
-
-		joins += AliasedResource(fkrel,oRelAlias)
-		joined = joined + oRelAlias
-	      }
-	      case true => {
-	      }
-	    }
+	    joins += AliasedResource(fkrel,oRelAlias)
 	  }
 	  case Value(dt) => {
 	    o match {
@@ -204,7 +189,7 @@ object RDB2RDF {
       }
       case PVar(v) => error("variable predicates require tedious enumeration; too tedious for me.")
     }
-    R2RState(joined, allVars, inConstraint, joins, varmap, exprs)
+    R2RState(allVars, inConstraint, joins, varmap, exprs)
   }
 
   def varToAttribute(varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):RelAliasAttribute = {
@@ -269,7 +254,6 @@ object RDB2RDF {
 
     /* Create an object to hold our compilation state. */
     var r2rState = R2RState(
-      Set[RelAlias](), 
       List[Var](), 
       Set[Var](), 
       Set[AliasedResource](), 
