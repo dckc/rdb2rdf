@@ -13,7 +13,7 @@ case class Int(relaliasattr:RelAliasAttribute) extends Binding
 case class Enum(relaliasattr:RelAliasAttribute) extends Binding
 
 object RDB2RDF {
-  case class R2RState(joined:Set[RelAlias], allVars:List[Var], inConstraint:Set[Var], joins:List[AliasedResource], varmap:Map[Var, SQL2RDFValueMapper], exprs:Set[PrimaryExpression])
+  case class R2RState(joined:Set[RelAlias], allVars:List[Var], inConstraint:Set[Var], joins:Set[AliasedResource], varmap:Map[Var, SQL2RDFValueMapper], exprs:Set[PrimaryExpression])
 
   sealed abstract class SQL2RDFValueMapper(relaliasattr:RelAliasAttribute)
   case class StringMapper(relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
@@ -139,7 +139,7 @@ object RDB2RDF {
 	  case false => {
 	    //joins = joins ::: List(Join(AliasedResource(rel,relalias), sconstraint))
 	    joined += relalias
-	    joins = joins ::: List(AliasedResource(rel,relalias))
+	    joins += AliasedResource(rel,relalias)
 	  }
 	  case true =>
 	}
@@ -180,7 +180,7 @@ object RDB2RDF {
 	    joined contains(oRelAlias) match {
 	      case false => {
 
-		joins = joins ::: List(AliasedResource(fkrel,oRelAlias))
+		joins += AliasedResource(fkrel,oRelAlias)
 		joined = joined + oRelAlias
 	      }
 	      case true => {
@@ -272,7 +272,7 @@ object RDB2RDF {
       Set[RelAlias](), 
       List[Var](), 
       Set[Var](), 
-      List[AliasedResource](), 
+      Set[AliasedResource](), 
       Map[Var, SQL2RDFValueMapper](), 
       Set[PrimaryExpression]()
     )

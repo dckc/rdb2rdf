@@ -12,7 +12,7 @@ case class Attribute(n:Name)
 case class AttrAlias(n:Name)
 case class Relation(n:Name)
 case class RelAlias(n:Name)
-case class TableList(joins:List[AliasedResource])
+case class TableList(joins:Set[AliasedResource])
 case class AliasedResource(rel:Relation, as:RelAlias)
 case class Expression(conjuncts:Set[PrimaryExpression])
 sealed abstract class PrimaryExpression
@@ -84,7 +84,7 @@ case class Sql() extends JavaTokenParsers {
     """[a-zA-Z_]\w*""".r ^^ { x => RelAlias(Name(x)) }
 
   def tablelist:Parser[TableList] =
-    repsep(aliasedjoin, "INNER" ~ "JOIN") ^^ { TableList(_) }
+    repsep(aliasedjoin, "INNER" ~ "JOIN") ^^ { m => TableList(m.toSet) }
 
   def aliasedjoin:Parser[AliasedResource] =
     relation ~ "AS" ~ relalias ^^
