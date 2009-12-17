@@ -13,7 +13,7 @@ SELECT R_emp.lastName AS A_empName, R_manager.lastName AS A_managName
             INNER JOIN Employee AS R_manager
  WHERE R_manager.id=R_emp.manager AND R_emp.lastName IS NOT NULL AND R_manager.lastName IS NOT NULL
 """
-    val expected = Select(AttributeList(List(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_emp")),
+    val expected = Select(AttributeList(Set(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_emp")),
 									      Attribute(Name("lastName"))),
 							    AttrAlias(Name("A_empName"))),
 					     NamedAttribute(RelAliasAttribute(RelAlias(Name("R_manager")),
@@ -36,7 +36,7 @@ SELECT R_emp.lastName AS A_empName
   FROM Employee AS R_emp
  WHERE R_emp.manager=18 AND R_emp.lastName IS NOT NULL
 """
-    val expected = Select(AttributeList(List(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_emp")),
+    val expected = Select(AttributeList(Set(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_emp")),
 									      Attribute(Name("lastName"))),
 							    AttrAlias(Name("A_empName"))))),
 			  TableList(Set(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp"))))),
@@ -54,7 +54,7 @@ SELECT R_emp.lastName AS A_empName
        INNER JOIN Employee AS R_manager
 WHERE R_emp.manager=R_manager.id AND R_manager.lastName="Johnson" AND R_emp.lastName IS NOT NULL
 """
-    val expected = Select(AttributeList(List(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_emp")),
+    val expected = Select(AttributeList(Set(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_emp")),
 									      Attribute(Name("lastName"))),
 							    AttrAlias(Name("A_empName"))))),
 			  TableList(Set(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp"))),
@@ -82,7 +82,7 @@ SELECT R_emp.lastName AS A_empName, R_grandManager.lastName AS A_grandManagName
    AND R_grandManager.birthday < R_manager.birthday
    AND R_emp.lastName IS NOT NULL AND R_grandManager.lastName IS NOT NULL
 """
-    val expected = Select(AttributeList(List(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_emp")), Attribute(Name("lastName"))),
+    val expected = Select(AttributeList(Set(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_emp")), Attribute(Name("lastName"))),
 							    AttrAlias(Name("A_empName"))),
 					     NamedAttribute(RelAliasAttribute(RelAlias(Name("R_grandManager")),Attribute(Name("lastName"))),
 							    AttrAlias(Name("A_grandManagName"))))),

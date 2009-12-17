@@ -13,7 +13,7 @@ case class Int(relaliasattr:RelAliasAttribute) extends Binding
 case class Enum(relaliasattr:RelAliasAttribute) extends Binding
 
 object RDB2RDF {
-  case class R2RState(allVars:List[Var], inConstraint:Set[Var], joins:Set[AliasedResource], varmap:Map[Var, SQL2RDFValueMapper], exprs:Set[PrimaryExpression])
+  case class R2RState(allVars:Set[Var], inConstraint:Set[Var], joins:Set[AliasedResource], varmap:Map[Var, SQL2RDFValueMapper], exprs:Set[PrimaryExpression])
 
   sealed abstract class SQL2RDFValueMapper(relaliasattr:RelAliasAttribute)
   case class StringMapper(relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
@@ -164,7 +164,7 @@ object RDB2RDF {
 	      case OLit(l) => exprs += literalConstraint(objattr, l, dt)
 	      case OUri(u) => exprs += uriConstraint(objattr, u)
 	      case OVar(v) => {
-		allVars = allVars ::: List(v)
+		allVars += v
 		// !! 2nd+ ref implies constraint
 		val binding = varConstraint(objattr, v, db, rel)
 		varmap += v -> binding
@@ -240,7 +240,7 @@ object RDB2RDF {
 
     /* Create an object to hold our compilation state. */
     var r2rState = R2RState(
-      List[Var](), 
+      Set[Var](), 
       Set[Var](), 
       Set[AliasedResource](), 
       Map[Var, SQL2RDFValueMapper](), 
@@ -252,10 +252,10 @@ object RDB2RDF {
 
     /* Select the attributes corresponding to the variables
      * in the SPARQL SELECT.  */
-    var attrlist:List[NamedAttribute] = List()
-    attrs.attributelist.foreach(vvar => attrlist = attrlist ::: List(
+    var attrlist:Set[NamedAttribute] = Set()
+    attrs.attributelist.foreach(vvar => attrlist += 
       NamedAttribute(varToAttribute(r2rState.varmap, vvar), AttrAlias(Name("A_" + vvar.s)))
-    ))
+    )
 
     var exprs:Set[PrimaryExpression] = r2rState.exprs
     var inConstraint:Set[Var] = r2rState.inConstraint

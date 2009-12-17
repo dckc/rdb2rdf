@@ -4,7 +4,7 @@ import scala.util.parsing.combinator._
 import java.net.URI
 
 case class Select(attributelist:AttributeList, tablelist:TableList, expression:Expression)
-case class AttributeList(attributes:List[NamedAttribute])
+case class AttributeList(attributes:Set[NamedAttribute])
 case class NamedAttribute(fqattribute:RelAliasAttribute, attralias:AttrAlias)
 //case class RelAttribute(relation:Relation, attribute:Attribute) c.f. ForeignKey
 case class RelAliasAttribute(relalias:RelAlias, attribute:Attribute)
@@ -60,7 +60,7 @@ case class Sql() extends JavaTokenParsers {
     "WHERE" ~ expression ^^ { case "WHERE" ~ expression => expression }
 
   def attributelist:Parser[AttributeList] =
-    repsep(namedattribute, ",") ^^ { AttributeList(_) }
+    repsep(namedattribute, ",") ^^ { l => AttributeList(l.toSet) }
 
   def namedattribute:Parser[NamedAttribute] =
     fqattribute ~ "AS" ~ attralias ^^
