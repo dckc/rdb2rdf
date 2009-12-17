@@ -120,7 +120,7 @@ object RDB2RDF {
     }
   }
 
-  def acc(db:DatabaseDesc, stateP:R2RState, triple:TriplePattern, pk:PrimaryKey):R2RState = {
+  def acc(db:DatabaseDesc, stateP:R2RState, triple:TriplePattern, pk:PrimaryKey, enforeForeignKeys:Boolean):R2RState = {
     val TriplePattern(s, p, o) = triple
     var state = stateP
     p match {
@@ -159,7 +159,8 @@ object RDB2RDF {
 	      case OVar(v) => state = varConstraint(state, fkaliasattr, v, db, fkrel)
 	    }
 
-	    state = R2RState(state.joins + AliasedResource(fkrel,oRelAlias), state.varmap, state.exprs)
+	    if (enforeForeignKeys)
+	      state = R2RState(state.joins + AliasedResource(fkrel,oRelAlias), state.varmap, state.exprs)
 	  }
 	  case Value(dt) => {
 	    o match {
@@ -243,7 +244,7 @@ object RDB2RDF {
     )
 
     /* Examine each triple, updating the compilation state. */
-    triples.triplepatterns.foreach(s => r2rState = acc(db, r2rState, s, pk))
+    triples.triplepatterns.foreach(s => r2rState = acc(db, r2rState, s, pk, true))
 
     /* Select the attributes corresponding to the variables
      * in the SPARQL SELECT.  */

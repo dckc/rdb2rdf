@@ -18,16 +18,16 @@ case class RelAliasAttribute(relalias:RelAlias, attribute:Attribute) {
   override def toString = relalias + "." + attribute
 }
 case class Attribute(n:Name) {
-  override def toString = "'" + n.s + "'"
+  override def toString = n.s /* "'" + n.s + "'" */
 }
 case class AttrAlias(n:Name) {
-  override def toString = "'" + n.s + "'"
+  override def toString = n.s /* "'" + n.s + "'" */
 }
 case class Relation(n:Name) {
-  override def toString = "'" + n.s + "'"
+  override def toString = n.s /* "'" + n.s + "'" */
 }
 case class RelAlias(n:Name) {
-  override def toString = "'" + n.s + "'"
+  override def toString = n.s /* "'" + n.s + "'" */
 }
 case class TableList(joins:Set[AliasedResource]) {
   override def toString = "  FROM " + (joins mkString ("\n       INNER JOIN "))
@@ -53,7 +53,7 @@ case class RValueAttr(fqattribute:RelAliasAttribute) extends RValue {
   override def toString = "" + fqattribute
 }
 case class RValueTyped(datatype:SQLDatatype, i:Name) extends RValue {
-  override def toString = "'" + i.s + "'" + datatype
+  override def toString = i.s /* "'" + i.s + "'" */ /* + datatype */
 }
 case class Name(s:String)
 
