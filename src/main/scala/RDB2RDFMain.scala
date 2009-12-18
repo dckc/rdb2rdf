@@ -138,11 +138,13 @@ object RDB2RDF {
 	}
 	state = R2RState(state.joins + AliasedResource(rel,relalias), state.varmap, state.exprs)
 
-	db.relationdescs(rel).attributes(attr) match {
+	val (targetattr, targetrel, dt) = db.relationdescs(rel).attributes(attr) match {
 	  case ForeignKey(fkrel, fkattr) => {
 	    val oRelAlias = relAliasFromO(o)
 	    val fkaliasattr = RelAliasAttribute(oRelAlias, fkattr)
 	    state = R2RState(state.joins, state.varmap, state.exprs + PrimaryExpressionEq(fkaliasattr,RValueAttr(objattr)))
+	    if (enforeForeignKeys)
+	      state = R2RState(state.joins + AliasedResource(fkrel,oRelAlias), state.varmap, state.exprs)
 
 	    var dt = db.relationdescs(fkrel).attributes(fkattr) match {
 	      case ForeignKey(dfkrel, dfkattr) => error("foreign key " + rel.n + "." + attr.n + 
@@ -150,25 +152,14 @@ object RDB2RDF {
 							"->" + dfkrel.n + "." + dfkattr.n)
 	      case Value(x) => x
 	    }
-	    val conjuncts = o match {
-
-	      /* Literal foreign keys should probably throw an error,
-	       * instead does what user meant. */
-	      case OLit(l) => state = literalConstraint(state, fkaliasattr, l, dt)
-	      case OUri(u) => state = uriConstraint(state, fkaliasattr, u)
-	      case OVar(v) => state = varConstraint(state, fkaliasattr, v, db, fkrel)
-	    }
-
-	    if (enforeForeignKeys)
-	      state = R2RState(state.joins + AliasedResource(fkrel,oRelAlias), state.varmap, state.exprs)
+	    (fkaliasattr, fkrel, dt)
 	  }
-	  case Value(dt) => {
-	    o match {
-	      case OLit(l) => state = literalConstraint(state, objattr, l, dt)
-	      case OUri(u) => state = uriConstraint(state, objattr, u)
-	      case OVar(v) => state = varConstraint(state, objattr, v, db, rel)
-	    }
-	  }
+	  case Value(dt) => (objattr, rel, dt)
+	}
+	o match {
+	  case OLit(l) => state = literalConstraint(state, targetattr, l, dt)
+	  case OUri(u) => state = uriConstraint    (state, targetattr, u)
+	  case OVar(v) => state = varConstraint    (state, targetattr, v, db, targetrel)
 	}
       }
 
