@@ -120,21 +120,23 @@ object RDB2RDF {
     }
   }
 
-  def acc(db:DatabaseDesc, stateP:R2RState, triple:TriplePattern, pk:PrimaryKey, enforeForeignKeys:Boolean):R2RState = {
+  def bindOnPredicate(db:DatabaseDesc, stateP:R2RState, triple:TriplePattern, pk:PrimaryKey, enforeForeignKeys:Boolean):R2RState = {
     val TriplePattern(s, p, o) = triple
     var state = stateP
     p match {
       case PVar(v) => error("variable predicates require tedious enumeration; too tedious for me.")
       case PUri(stem, spRel, spAttr) => {
+	/* Attributes that come from the predicate: */
 	val rel = Relation(Name(spRel.s))
 	val attr = Attribute(Name(spAttr.s))
 	val relalias = relAliasFromS(s)
+
+	/* Attributes that come from the subject: */
 	val subjattr = RelAliasAttribute(relalias, pk.attr)
 	val objattr = RelAliasAttribute(relalias, attr)
-
-	s match {
-	  case SUri(u) => state = uriConstraint(state, subjattr, u)
-	  case SVar(v) => state = varConstraint(state, subjattr, v, db, rel)
+	state = s match {
+	  case SUri(u) => uriConstraint(state, subjattr, u)
+	  case SVar(v) => varConstraint(state, subjattr, v, db, rel)
 	}
 	state = R2RState(state.joins + AliasedResource(rel,relalias), state.varmap, state.exprs)
 
@@ -146,20 +148,20 @@ object RDB2RDF {
 	    if (enforeForeignKeys)
 	      state = R2RState(state.joins + AliasedResource(fkrel,oRelAlias), state.varmap, state.exprs)
 
-	    var dt = db.relationdescs(fkrel).attributes(fkattr) match {
+	    var fkdt = db.relationdescs(fkrel).attributes(fkattr) match {
 	      case ForeignKey(dfkrel, dfkattr) => error("foreign key " + rel.n + "." + attr.n + 
 							"->" + fkrel.n + "." + fkattr.n + 
 							"->" + dfkrel.n + "." + dfkattr.n)
 	      case Value(x) => x
 	    }
-	    (fkaliasattr, fkrel, dt)
+	    (fkaliasattr, fkrel, fkdt)
 	  }
 	  case Value(dt) => (objattr, rel, dt)
 	}
-	o match {
-	  case OLit(l) => state = literalConstraint(state, targetattr, l, dt)
-	  case OUri(u) => state = uriConstraint    (state, targetattr, u)
-	  case OVar(v) => state = varConstraint    (state, targetattr, v, db, targetrel)
+	state = o match {
+	  case OLit(l) => literalConstraint(state, targetattr, l, dt)
+	  case OUri(u) => uriConstraint    (state, targetattr, u)
+	  case OVar(v) => varConstraint    (state, targetattr, v, db, targetrel)
 	}
       }
 
@@ -235,7 +237,7 @@ object RDB2RDF {
     )
 
     /* Examine each triple, updating the compilation state. */
-    triples.triplepatterns.foreach(s => r2rState = acc(db, r2rState, s, pk, true))
+    triples.triplepatterns.foreach(s => r2rState = bindOnPredicate(db, r2rState, s, pk, true))
 
     /* Select the attributes corresponding to the variables
      * in the SPARQL SELECT.  */
