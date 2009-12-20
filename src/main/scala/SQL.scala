@@ -74,7 +74,7 @@ case class Value(datatype:SQLDatatype) extends ValueDescription
 case class ForeignKey(rel:Relation, attr:Attribute) extends ValueDescription
 
 case class DatabaseDesc(relationdescs:Map[Relation,RelationDesc])
-case class RelationDesc(primarykey:Attribute, attributes:Map[Attribute, ValueDescription])
+case class RelationDesc(primarykey:Option[Attribute], attributes:Map[Attribute, ValueDescription])
 
 case class Sql() extends JavaTokenParsers {
 

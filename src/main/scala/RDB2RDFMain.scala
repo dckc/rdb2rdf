@@ -19,6 +19,7 @@ object RDB2RDF {
   case class StringMapper(relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
   case class IntMapper(relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
   case class RDFNoder(relation:Relation, relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
+  case class RDFBNoder(relation:Relation, relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
 
   def relAliasFromS(s:S):RelAlias = {
     s match {
@@ -51,7 +52,10 @@ object RDB2RDF {
 
   def uriConstraint(state:R2RState, constrainMe:RelAliasAttribute, u:ObjUri):R2RState = {
     // println("equiv+= " + toString(constrainMe) + "=" + value)
-    R2RState(state.joins, state.varmap, state.exprs + PrimaryExpressionEq(constrainMe,RValueTyped(SQLDatatype.INTEGER,Name(u.v.s))))    
+    //R2RState(state.joins, state.varmap, state.exprs + PrimaryExpressionEq(constrainMe,RValueTyped(SQLDatatype.INTEGER,Name(u.v.s))))
+    val attr = Attribute(Name(u.attr.s))
+    val relvar = RelAliasAttribute(constrainMe.relalias, attr)
+    R2RState(state.joins, state.varmap, state.exprs + PrimaryExpressionEq(relvar,RValueTyped(SQLDatatype.INTEGER,Name(u.v.s))))
   }
 
   def literalConstraint(state:R2RState, constrainMe:RelAliasAttribute, lit:SparqlLiteral, dt:SQLDatatype):R2RState = {
@@ -86,22 +90,30 @@ object RDB2RDF {
     */
     val reldesc = db.relationdescs(rel)
     if (state.varmap.contains(v)) {
+      /* The variable has already been bound. */
       if (varToAttribute(state.varmap, v) == constrainMe)
-	state /* Don't bother stipulating that foo.bar=foo.bar . */
+	/* Don't bother stipulating that foo.bar=foo.bar . */
+	state
       else
+	/* Constraint against the initial binding for this variable. */
 	R2RState(state.joins, state.varmap, state.exprs + PrimaryExpressionEq(varToAttribute(state.varmap, v), RValueAttr(constrainMe)))
     } else {
+      /* This is a new variable. */
       val binding = reldesc.primarykey match {
-	case Attribute(constrainMe.attribute.n) => 
+	case Some(Attribute(constrainMe.attribute.n)) => 
 	  RDFNoder(rel, constrainMe)
 	case _ => {
-	  reldesc.attributes(constrainMe.attribute) match {
-	    case ForeignKey(fkrel, fkattr) =>
-	      RDFNoder(rel, constrainMe)
-	    case Value(SQLDatatype("String")) =>
-	      StringMapper(constrainMe)
-	    case Value(SQLDatatype("Int")) =>
-	      IntMapper(constrainMe)
+	  if (reldesc.attributes.contains(constrainMe.attribute)) {
+	    reldesc.attributes(constrainMe.attribute) match {
+	      case ForeignKey(fkrel, fkattr) =>
+		RDFNoder(rel, constrainMe)
+	      case Value(SQLDatatype("String")) =>
+		StringMapper(constrainMe)
+	      case Value(SQLDatatype("Int")) =>
+		IntMapper(constrainMe)
+	    }
+	  } else {
+	    RDFBNoder(rel, constrainMe)
 	  }
 	}
       }
@@ -117,6 +129,7 @@ object RDB2RDF {
       case StringMapper(relalias) => "STRING: " + toString(relalias)
       case IntMapper(relalias) => "INT: " + toString(relalias)
       case RDFNoder(relation, relalias) => "RDFNoder: " + relation.n.s + ", " + toString(relalias)
+      case RDFBNoder(relation, relalias) => "RDFBNoder: " + relation.n.s + ", " + toString(relalias)
     }
   }
 
@@ -187,6 +200,7 @@ object RDB2RDF {
       case StringMapper(relalias) => relalias
       case IntMapper(relalias) => relalias
       case RDFNoder(relation, relalias) => relalias
+      case RDFBNoder(relation, relalias) => relalias
     }
   }
 
@@ -222,6 +236,7 @@ object RDB2RDF {
       case StringMapper(relalias) => relalias
       case IntMapper(relalias) => relalias
       case RDFNoder(relation, relalias) => relalias
+      case RDFBNoder(relation, relalias) => relalias
     }
     PrimaryExpressionNotNull(aattr)
   }

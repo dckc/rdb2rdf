@@ -7,7 +7,7 @@ class RDB2RDFTest extends FunSuite {
 
   val db:DatabaseDesc = DatabaseDesc(
     Map(Relation("Employee") -> 
-	RelationDesc(Attribute("id"), 
+	RelationDesc(Option(Attribute("id")), 
 		     Map(Attribute("id") -> Value(SQLDatatype.INTEGER),
 			 Attribute("lastName") -> Value(SQLDatatype.STRING),
 			 Attribute("birthday") -> Value(SQLDatatype.INTEGER), // !!!
@@ -17,16 +17,15 @@ class RDB2RDFTest extends FunSuite {
 
   val db2:DatabaseDesc = DatabaseDesc(
     Map(Relation("Employee") -> 
-	RelationDesc(Attribute("id"), 
+	RelationDesc(Option(Attribute("id")), 
 		     Map(Attribute("id") -> Value(SQLDatatype.INTEGER),
 			 Attribute("lastName") -> Value(SQLDatatype.STRING),
 			 Attribute("birthday") -> Value(SQLDatatype.INTEGER), // !!!
 			 Attribute("manager") -> Value(SQLDatatype.INTEGER),
 			 Attribute("address") -> Value(SQLDatatype.INTEGER))),
 	Relation("Manage") -> 
-	RelationDesc(Attribute("id"), // !!doesnotexist!!
-		     Map(Attribute("id") -> Value(SQLDatatype.INTEGER), // !!doesnotexist!!
-			 Attribute("manager") -> ForeignKey(Relation("Employee"), Attribute("id")), 
+	RelationDesc(None,
+		     Map(Attribute("manager") -> ForeignKey(Relation("Employee"), Attribute("id")), 
 			 Attribute("manages") -> ForeignKey(Relation("Employee"),  Attribute("id"))))
       ))
 
