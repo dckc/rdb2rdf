@@ -10,8 +10,8 @@ class SparqlTest extends FunSuite {
     val e = """
 ?emp      <http://hr.example/DB/Employee#lastName>   "bob"^^<http://www.w3.org/2001/XMLSchema#string>
 """
-    val expected = TriplePatterns(List(TriplePattern(SVar(Var("emp")),PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")),OLit(SparqlLiteral(RDFLiteral("bob",Datatype(new URI("http://www.w3.org/2001/XMLSchema#string"))))))), SparqlExpression(List()))
-    assert(expected === (a.parseAll(a.triplepatterns, e).get))
+    val expected = BasicGraphPattern(List(TriplePattern(SVar(Var("emp")),PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")),OLit(SparqlLiteral(RDFLiteral("bob",Datatype(new URI("http://www.w3.org/2001/XMLSchema#string"))))))), SparqlExpression(List()))
+    assert(expected === (a.parseAll(a.basicgraphpattern, e).get))
   }
 
   test("parse a litint") {
@@ -19,11 +19,11 @@ class SparqlTest extends FunSuite {
     val e = """
 ?emp      <http://hr.example/DB/Employee#age>   "21"^^<http://www.w3.org/2001/XMLSchema#integer>
 """
-    val expected = TriplePatterns(List(TriplePattern(SVar(Var("emp")),PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("age")),OLit(SparqlLiteral(RDFLiteral("21",Datatype(new URI("http://www.w3.org/2001/XMLSchema#integer"))))))), SparqlExpression(List()))
-    assert(expected === (a.parseAll(a.triplepatterns, e).get))
+    val expected = BasicGraphPattern(List(TriplePattern(SVar(Var("emp")),PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("age")),OLit(SparqlLiteral(RDFLiteral("21",Datatype(new URI("http://www.w3.org/2001/XMLSchema#integer"))))))), SparqlExpression(List()))
+    assert(expected === (a.parseAll(a.basicgraphpattern, e).get))
   }
 
-  test("parse a triplepatterns") {
+  test("parse a basicgraphpattern") {
     val a = Sparql()
     val e = """
 ?emp      <http://hr.example/DB/Employee#lastName>   ?empName .
@@ -31,7 +31,7 @@ class SparqlTest extends FunSuite {
 ?manager  <http://hr.example/DB/Employee#lastName>   ?managName
 """
     val tps =
-      TriplePatterns(
+      BasicGraphPattern(
 	List(
 	  TriplePattern(
 	    SVar(Var("emp")),
@@ -45,7 +45,7 @@ class SparqlTest extends FunSuite {
 	    SVar(Var("manager")),
 	    PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")),
 	    OVar(Var("managName")))), SparqlExpression(List()))
-    assert(tps === a.parseAll(a.triplepatterns, e).get)
+    assert(tps === a.parseAll(a.basicgraphpattern, e).get)
   }
 
   // ?manBday < ?empBday && ?grandManBday < ?manBday
@@ -100,7 +100,7 @@ FILTER(?manBday < ?empBday && ?grandManBday < ?manBday)
     val tps =
       SparqlSelect(
 	SparqlAttributeList(List(Var("empName"), Var("manageName"))),
-	TriplePatterns(
+	BasicGraphPattern(
 	  List(
 	    TriplePattern(
 	      SVar(Var("emp")),
@@ -126,7 +126,7 @@ SELECT ?empName ?manageName {
     val tps =
       SparqlSelect(
 	SparqlAttributeList(List(Var("empName"), Var("manageName"))),
-	TriplePatterns(
+	BasicGraphPattern(
 	  List(
 	    TriplePattern(
 	      SVar(Var("emp")),
@@ -161,6 +161,30 @@ SELECT ?empName ?grandManagName {
 """
     a.parseAll(a.select, e).get
   }
+
+//   test("parse a nested bgp") {
+//     val a = Sparql()
+//     val e = """
+// SELECT ?x { { ?x <p> ?y} }
+// """
+//     a.parseAll(a.select, e).get
+//   }
+
+//   test("parse a conjunction") {
+//     val a = Sparql()
+//     val e = """
+// SELECT ?x { { ?x <p> ?y} { ?x <p> ?y} }
+// """
+//     a.parseAll(a.select, e).get
+//   }
+
+//   test("parse a disjunction") {
+//     val a = Sparql()
+//     val e = """
+// SELECT ?x { { ?x <p> ?y} UNION { ?x <p> ?y} }
+// """
+//     a.parseAll(a.select, e).get
+//   }
 
   test("decompose a predicate uri in stem, rel and attr") {
     val uri = "http://hr.example/our/favorite/DB/Employee#lastName"

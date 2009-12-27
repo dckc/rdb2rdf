@@ -204,4 +204,36 @@ SELECT R_emp.lastName AS A_empName, R_grandManager.lastName AS A_grandManagName
     assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id")))) === sqlSelect)
   }
 
+//   test("transform disj1") {
+//     val sparqlParser = Sparql()
+//     val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
+// SELECT ?name
+//  WHERE { ?who emplP:lastName "Smith"
+//          { ?above   manageP:manages ?who .
+//            ?above   manageP:manager ?manager .
+//            ?manager emplP:lastName  ?name }
+//          UNION
+//          { ?below   manageP:manager ?who .
+//            ?below   manageP:manages ?managed .
+//            ?managed emplP:lastName  ?name } }
+// """).get
+//     val sqlParser = Sql()
+//     val sqlSelect = sqlParser.parseAll(sqlParser.select, """
+// SELECT union1.name
+//   FROM Employee AS who
+//        INNER JOIN (
+//          SELECT manager.lastName AS name, above.manages AS who
+//                 FROM Manage AS above
+//                 INNER JOIN Employee as manager ON above.manager=manager.id
+//           WHERE manager.lastName IS NOT NULL
+//        UNION
+//          SELECT managed.lastName AS name, below.manager AS who
+//                 FROM Manage AS below
+//                 INNER JOIN Employee as managed ON below.manages=managed.id
+//           WHERE managed.lastName IS NOT NULL
+//        ) AS union1 ON union1.who=who.id
+//  WHERE who.lastName="Smith"
+// """).get
+//     assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id")))) === sqlSelect)
+//   }
 }

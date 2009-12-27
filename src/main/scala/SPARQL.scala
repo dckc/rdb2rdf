@@ -11,10 +11,10 @@ object MyParsers extends RegexParsers {
 
 import MyParsers._
 
-case class SparqlSelect(attrs:SparqlAttributeList, triples:TriplePatterns)
+case class SparqlSelect(attrs:SparqlAttributeList, triples:BasicGraphPattern)
 case class SparqlAttributeList(attributelist:List[Var])
 
-case class TriplePatterns(triplepatterns:List[TriplePattern], filter:SparqlExpression)
+case class BasicGraphPattern(triplepatterns:List[TriplePattern], filter:SparqlExpression)
 case class TriplePattern(s:S, p:P, o:O)
 
 case class ObjUri(stem:Stem, rel:Rel, attr:Attr, v:CellValue)
@@ -57,7 +57,7 @@ case class TermLit(lit:SparqlLiteral) extends Term
 case class Sparql() extends JavaTokenParsers {
 
   def select:Parser[SparqlSelect] =
-    "SELECT" ~ attributelist ~ "{" ~ triplepatterns ~ "}" ^^ { case "SELECT"~a~"{"~t~"}" => SparqlSelect(a, t) }
+    "SELECT" ~ attributelist ~ "{" ~ basicgraphpattern ~ "}" ^^ { case "SELECT"~a~"{"~t~"}" => SparqlSelect(a, t) }
 
   def filter:Parser[SparqlExpression] =
     "FILTER" ~ "(" ~ expression ~ ")" ^^ { case "FILTER"~"("~expression~")" => expression }
@@ -82,14 +82,14 @@ case class Sparql() extends JavaTokenParsers {
   def attributelist:Parser[SparqlAttributeList] =
     rep(varr) ^^ { SparqlAttributeList(_) }
 
-  def triplepatterns:Parser[TriplePatterns] =
+  def basicgraphpattern:Parser[BasicGraphPattern] =
     repsep(triplepattern, ".") ~ opt(filter) ^^ {
       case pats~filter =>
 	val sparqlExpression:SparqlExpression = filter match {
 	  case None => SparqlExpression(List())
 	  case Some(f) => f
 	}
-      TriplePatterns(pats, sparqlExpression)
+      BasicGraphPattern(pats, sparqlExpression)
     }
 
   def triplepattern:Parser[TriplePattern] =
