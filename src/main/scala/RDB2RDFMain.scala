@@ -103,6 +103,7 @@ object RDB2RDF {
 	case Some(Attribute(constrainMe.attribute.n)) => 
 	  RDFNoder(rel, constrainMe)
 	case _ => {
+	  // e.g. Attribute(Name("id")) or None
 	  if (reldesc.attributes.contains(constrainMe.attribute)) {
 	    reldesc.attributes(constrainMe.attribute) match {
 	      case ForeignKey(fkrel, fkattr) =>
@@ -206,9 +207,9 @@ object RDB2RDF {
 
   def filter(varmap:Map[Var, SQL2RDFValueMapper], f:SparqlPrimaryExpression):PrimaryExpression = {
     val (lTerm:Term, rTerm:Term, sqlexpr:((RelAliasAttribute,RValueAttr)=>PrimaryExpression)) = f match {
-      case SparqlPrimaryExpressionEq(l, r) => (l.term, r.term, PrimaryExpressionEq(_,_)) // Alex, how can i return PrimaryExpressionEq here?
+      case SparqlPrimaryExpressionEq(l, r) => (l.term, r.term, PrimaryExpressionEq(_,_))
       case SparqlPrimaryExpressionLt(l, r) => (l.term, r.term, PrimaryExpressionLt(_,_))
-      }
+    }
 // PrimaryExpressionEq(_,_) === (x,y) => PrymaryExpressionEq(x,y)
     lTerm match {
       // does not handle FILTER (<x> = ?v)
