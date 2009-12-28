@@ -15,8 +15,13 @@ case class SparqlSelect(attrs:SparqlAttributeList, gp:GraphPattern)
 case class SparqlAttributeList(attributelist:List[Var])
 
 sealed abstract class GraphPattern
-case class BasicGraphPattern(triplepatterns:List[TriplePattern], filter:SparqlExpression) extends GraphPattern
-case class GroupGraphPattern(gps:List[GraphPattern]) extends GraphPattern
+case class TriplesBlock(triplepatterns:List[TriplePattern], filter:SparqlExpression) extends GraphPattern
+case class TableConjunction(gps:List[GraphPattern]) extends GraphPattern
+case class TableDisjunction(gps:List[GraphPattern]) extends GraphPattern
+case class ParserTableFilter(expr:SparqlExpression) extends GraphPattern
+case class TableFilter(gp:GraphPattern, expr:SparqlExpression) extends GraphPattern
+case class OptionalGraphPattern(gp:GraphPattern) extends GraphPattern
+case class GraphGraphPattern(gp:GraphPattern) extends GraphPattern
 
 case class TriplePattern(s:S, p:P, o:O)
 case class ObjUri(stem:Stem, rel:Rel, attr:Attr, v:CellValue)
@@ -58,7 +63,7 @@ case class TermLit(lit:SparqlLiteral) extends Term
 case class Sparql() extends JavaTokenParsers {
 
   def select:Parser[SparqlSelect] =
-    "SELECT" ~ attributelist ~ "{" ~ graphpattern ~ "}" ^^ { case "SELECT"~a~"{"~t~"}" => SparqlSelect(a, t) }
+    "SELECT" ~ attributelist ~ groupgraphpattern ^^ { case "SELECT"~a~gp => SparqlSelect(a, gp) }
 
   def filter:Parser[SparqlExpression] =
     "FILTER" ~ "(" ~ expression ~ ")" ^^ { case "FILTER"~"("~expression~")" => expression }
@@ -83,24 +88,45 @@ case class Sparql() extends JavaTokenParsers {
   def attributelist:Parser[SparqlAttributeList] =
     rep(varr) ^^ { SparqlAttributeList(_) }
 
-  def graphpattern:Parser[GraphPattern] = (
-      // "{"~graphpattern~"}" ^^ { case "{"~x~"}" => GroupGraphPattern(List(x)) }
-      groupgraphpattern ^^ { ggp => ggp }
-    | basicgraphpattern ^^ { bgp => bgp }
-  )
-
   def groupgraphpattern:Parser[GraphPattern] = (
-      "{"~graphpattern~"}" ^^ { case "{"~x~"}" => GroupGraphPattern(List(x)) }
+    "{" ~ opt(triplesblock) ~ rep(graphpatternnottriplesORfilter ~ opt(triplesblock)) ~ "}" ^^
+    //"{" ~ opt(triplesblock) ~ rep(graphpatternnottriplesORfilter_OPTtriplesblock) ~ "}" ^^
+    {
+      case "{"~tbOPT~gpntORf_tbOPT~"}" => {
+	val l:Option[GraphPattern] = tbOPT
+	val r:List[~[GraphPattern,Option[TriplesBlock]]] = gpntORf_tbOPT
+	(tbOPT, gpntORf_tbOPT) match {
+	  case (Some(x), list) => {
+	    if (list.size == 0)
+	      x
+	    else {
+	      println("ignoring " + list)
+	      TableConjunction(List[GraphPattern](x))
+	    }
+	  }
+	}
+      }
+    }
   )
 
-  def basicgraphpattern:Parser[BasicGraphPattern] =
+  def graphpatternnottriplesORfilter_OPTtriplesblock:Parser[(GraphPattern, Option[TriplesBlock])] =
+    graphpatternnottriplesORfilter ~ opt(triplesblock) ^^ { case a~b => (a, b) }
+
+  def graphpatternnottriplesORfilter:Parser[GraphPattern] = (
+      "OPTIONAL"~groupgraphpattern ^^ { case "OPTIONAL"~ggp => OptionalGraphPattern(ggp) }
+    | rep1sep(groupgraphpattern, "UNION") ^^ { x => if (x.size > 1) TableDisjunction(x) else x(0) }
+    | "GRAPH"~uri~groupgraphpattern ^^ { case "GRAPH"~u~ggp => GraphGraphPattern(ggp) }
+    | filter ^^ { x => ParserTableFilter(x) }
+  )
+
+  def triplesblock:Parser[TriplesBlock] =
     repsep(triplepattern, ".") ~ opt(filter) ^^ {
       case pats~filter =>
 	val sparqlExpression:SparqlExpression = filter match {
 	  case None => SparqlExpression(List())
 	  case Some(f) => f
 	}
-      BasicGraphPattern(pats, sparqlExpression)
+      TriplesBlock(pats, sparqlExpression)
     }
 
   def triplepattern:Parser[TriplePattern] =

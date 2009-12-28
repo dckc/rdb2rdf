@@ -10,8 +10,8 @@ class SparqlTest extends FunSuite {
     val e = """
 ?emp      <http://hr.example/DB/Employee#lastName>   "bob"^^<http://www.w3.org/2001/XMLSchema#string>
 """
-    val expected = BasicGraphPattern(List(TriplePattern(SVar(Var("emp")),PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")),OLit(SparqlLiteral(RDFLiteral("bob",Datatype(new URI("http://www.w3.org/2001/XMLSchema#string"))))))), SparqlExpression(List()))
-    assert(expected === (a.parseAll(a.basicgraphpattern, e).get))
+    val expected = TriplesBlock(List(TriplePattern(SVar(Var("emp")),PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")),OLit(SparqlLiteral(RDFLiteral("bob",Datatype(new URI("http://www.w3.org/2001/XMLSchema#string"))))))), SparqlExpression(List()))
+    assert(expected === (a.parseAll(a.triplesblock, e).get))
   }
 
   test("parse a litint") {
@@ -19,11 +19,11 @@ class SparqlTest extends FunSuite {
     val e = """
 ?emp      <http://hr.example/DB/Employee#age>   "21"^^<http://www.w3.org/2001/XMLSchema#integer>
 """
-    val expected = BasicGraphPattern(List(TriplePattern(SVar(Var("emp")),PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("age")),OLit(SparqlLiteral(RDFLiteral("21",Datatype(new URI("http://www.w3.org/2001/XMLSchema#integer"))))))), SparqlExpression(List()))
-    assert(expected === (a.parseAll(a.basicgraphpattern, e).get))
+    val expected = TriplesBlock(List(TriplePattern(SVar(Var("emp")),PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("age")),OLit(SparqlLiteral(RDFLiteral("21",Datatype(new URI("http://www.w3.org/2001/XMLSchema#integer"))))))), SparqlExpression(List()))
+    assert(expected === (a.parseAll(a.triplesblock, e).get))
   }
 
-  test("parse a basicgraphpattern") {
+  test("parse a triplesblock") {
     val a = Sparql()
     val e = """
 ?emp      <http://hr.example/DB/Employee#lastName>   ?empName .
@@ -31,7 +31,7 @@ class SparqlTest extends FunSuite {
 ?manager  <http://hr.example/DB/Employee#lastName>   ?managName
 """
     val tps =
-      BasicGraphPattern(
+      TriplesBlock(
 	List(
 	  TriplePattern(
 	    SVar(Var("emp")),
@@ -45,7 +45,7 @@ class SparqlTest extends FunSuite {
 	    SVar(Var("manager")),
 	    PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")),
 	    OVar(Var("managName")))), SparqlExpression(List()))
-    assert(tps === a.parseAll(a.basicgraphpattern, e).get)
+    assert(tps === a.parseAll(a.triplesblock, e).get)
   }
 
   // ?manBday < ?empBday && ?grandManBday < ?manBday
@@ -89,6 +89,25 @@ FILTER(?manBday < ?empBday && ?grandManBday < ?manBday)
     assert(expected === (a.parseAll(a.filter, e).get))
   }
 
+  test("SELECT") {
+    val a = Sparql()
+    val e = """
+SELECT ?empName ?manageName {
+?emp      <http://hr.example/DB/Employee#lastName>   ?empName
+}
+"""
+    val tps =
+      SparqlSelect(
+	SparqlAttributeList(List(Var("empName"), Var("manageName"))),
+	TriplesBlock(
+	  List(
+	    TriplePattern(
+	      SVar(Var("emp")),
+		PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")),
+	      OVar(Var("empName")))), SparqlExpression(List())))
+    assert(tps === a.parseAll(a.select, e).get)
+  }
+
   test("SELECT with FILTER") {
     val a = Sparql()
     val e = """
@@ -100,7 +119,7 @@ FILTER(?manBday < ?empBday && ?grandManBday < ?manBday)
     val tps =
       SparqlSelect(
 	SparqlAttributeList(List(Var("empName"), Var("manageName"))),
-	BasicGraphPattern(
+	TriplesBlock(
 	  List(
 	    TriplePattern(
 	      SVar(Var("emp")),
@@ -126,7 +145,7 @@ SELECT ?empName ?manageName {
     val tps =
       SparqlSelect(
 	SparqlAttributeList(List(Var("empName"), Var("manageName"))),
-	BasicGraphPattern(
+	TriplesBlock(
 	  List(
 	    TriplePattern(
 	      SVar(Var("emp")),

@@ -198,7 +198,7 @@ object RDB2RDF {
 
   def findVars(gp:GraphPattern):Set[Var] = {
     gp match {
-      case BasicGraphPattern(triplepatterns, filter:SparqlExpression) => {
+      case TriplesBlock(triplepatterns, filter:SparqlExpression) => {
 	/* Examine each triple, updating the compilation state. */
 	triplepatterns.foldLeft(Set[Var]())((x, y) => x ++ findVars(y))
       }
@@ -254,7 +254,7 @@ object RDB2RDF {
   def mapGraphPattern(db:DatabaseDesc, stateP:R2RState, gp:GraphPattern, pk:PrimaryKey, enforeForeignKeys:Boolean):R2RState = {
     var state = stateP
     gp match {
-      case BasicGraphPattern(triplepatterns, filter:SparqlExpression) => {
+      case TriplesBlock(triplepatterns, filter:SparqlExpression) => {
 	/* Examine each triple, updating the compilation state. */
 	triplepatterns.foreach(s => state = bindOnPredicate(db, state, s, pk, true))
 
