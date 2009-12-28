@@ -92,8 +92,6 @@ case class Sparql() extends JavaTokenParsers {
     "{" ~ opt(triplesblock) ~ rep(graphpatternnottriplesORfilter ~ opt(triplesblock)) ~ "}" ^^
     {
       case "{"~tbOPT~gpntORf_tbOPT~"}" => {
-	val l:Option[GraphPattern] = tbOPT
-	val r:List[~[GraphPattern,Option[TriplesBlock]]] = gpntORf_tbOPT
 	var init = tbOPT match {
 	  case Some(x) => x
 	  case _ => EmptyGraphPattern()
@@ -102,17 +100,6 @@ case class Sparql() extends JavaTokenParsers {
 	  case ~(TableFilter(null, expr), None) => TableFilter(gp, expr)
 	  case x => error("found " + x)
 	})
-	// (tbOPT, gpntORf_tbOPT) match {
-	//   case (Some(tb1), list) => {
-	//     var gp = tb1
-	//     if (list.size == 0)
-	//       x
-	//     else {
-	//       println("ignoring " + list)
-	//       TableConjunction(List[GraphPattern](x))
-	//     }
-	//   }
-	// }
       }
     }
   )
