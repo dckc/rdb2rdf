@@ -196,6 +196,15 @@ object RDB2RDF {
     varS ++ varO
   }
 
+  def findVars(gp:GraphPattern):Set[Var] = {
+    gp match {
+      case BasicGraphPattern(triplepatterns, filter:SparqlExpression) => {
+	/* Examine each triple, updating the compilation state. */
+	triplepatterns.foldLeft(Set[Var]())((x, y) => x ++ findVars(y))
+      }
+    }
+  }
+
   def varToAttribute(varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):RelAliasAttribute = {
     varmap(vvar) match {
       case StringMapper(relalias) => relalias
@@ -205,8 +214,8 @@ object RDB2RDF {
     }
   }
 
-  def filter(varmap:Map[Var, SQL2RDFValueMapper], f:SparqlPrimaryExpression):PrimaryExpression = {
-    val (lTerm:Term, rTerm:Term, sqlexpr:((RelAliasAttribute,RValueAttr)=>PrimaryExpression)) = f match {
+  def filter2expr(varmap:Map[Var, SQL2RDFValueMapper], f:SparqlPrimaryExpression):PrimaryExpression = {
+    val (lTerm:Term, rTerm:Term, sqlexpr) = f match { // sqlexpr::((RelAliasAttribute,RValueAttr)=>PrimaryExpression)
       case SparqlPrimaryExpressionEq(l, r) => (l.term, r.term, PrimaryExpressionEq(_,_))
       case SparqlPrimaryExpressionLt(l, r) => (l.term, r.term, PrimaryExpressionLt(_,_))
     }
@@ -242,6 +251,27 @@ object RDB2RDF {
     PrimaryExpressionNotNull(aattr)
   }
 
+  def mapGraphPattern(db:DatabaseDesc, stateP:R2RState, gp:GraphPattern, pk:PrimaryKey, enforeForeignKeys:Boolean):R2RState = {
+    var state = stateP
+    gp match {
+      case BasicGraphPattern(triplepatterns, filter:SparqlExpression) => {
+	/* Examine each triple, updating the compilation state. */
+	triplepatterns.foreach(s => state = bindOnPredicate(db, state, s, pk, true))
+
+	/* Add constraints for all the FILTERS */
+	val filterExprs:Set[PrimaryExpression] =
+	  filter.conjuncts.toSet map ((x:SparqlPrimaryExpression) => filter2expr(state.varmap, x))
+
+	// val allVars:Set[Var] = triples.triplepatterns.foldLeft(Set[Var]())((x, y) => x ++ findVars(y))
+	val allVars:Set[Var] = findVars(gp)
+	val nullExprs = allVars map (nullGuard(state.varmap, _))
+	//val exprWithNull = allVars.foldLeft(exprs)((exprs,s) => nullGuard(exprs, r2rState.varmap, s))
+
+	R2RState(state.joins, state.varmap, state.exprs ++ filterExprs ++ nullExprs)
+      }
+    }
+  }
+
   def apply (db:DatabaseDesc, sparql:SparqlSelect, stem:StemURI, pk:PrimaryKey) : Select = {
     val SparqlSelect(attrs, triples) = sparql
 
@@ -252,8 +282,7 @@ object RDB2RDF {
       Set[PrimaryExpression]()
     )
 
-    /* Examine each triple, updating the compilation state. */
-    triples.triplepatterns.foreach(s => r2rState = bindOnPredicate(db, r2rState, s, pk, true))
+    r2rState = mapGraphPattern(db, r2rState, sparql.gp, pk, true)
 
     /* Select the attributes corresponding to the variables
      * in the SPARQL SELECT.  */
@@ -262,20 +291,11 @@ object RDB2RDF {
       NamedAttribute(varToAttribute(r2rState.varmap, vvar), AttrAlias(Name("A_" + vvar.s)))
     )
 
-    /* Add constraints for all the FILTERS */
-
-    val filterExprs:Set[PrimaryExpression] =
-      triples.filter.conjuncts.toSet map ((x:SparqlPrimaryExpression) => filter(r2rState.varmap, x))
-
-    val allVars:Set[Var] = triples.triplepatterns.foldLeft(Set[Var]())((x, y) => x ++ findVars(y))
-    val nullExprs = allVars map (nullGuard(r2rState.varmap, _))
-    //val exprWithNull = allVars.foldLeft(exprs)((exprs,s) => nullGuard(exprs, r2rState.varmap, s))
-
     /* Construct the generated query as an abstract syntax. */
     Select(
       AttributeList(attrlist),
       TableList(r2rState.joins),
-      Expression(r2rState.exprs ++ filterExprs ++ nullExprs)
+      Expression(r2rState.exprs)
 //      Expression(exprWithNull)
     )
   }

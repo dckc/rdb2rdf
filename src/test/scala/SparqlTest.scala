@@ -162,13 +162,13 @@ SELECT ?empName ?grandManagName {
     a.parseAll(a.select, e).get
   }
 
-//   test("parse a nested bgp") {
-//     val a = Sparql()
-//     val e = """
-// SELECT ?x { { ?x <p> ?y} }
-// """
-//     a.parseAll(a.select, e).get
-//   }
+  test("parse a nested bgp") {
+    val a = Sparql()
+    val e = """
+SELECT ?x { { ?x <p> ?y} }
+"""
+    a.parseAll(a.select, e).get
+  }
 
 //   test("parse a conjunction") {
 //     val a = Sparql()
