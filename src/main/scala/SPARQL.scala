@@ -100,7 +100,6 @@ case class Sparql() extends JavaTokenParsers {
 	}
 	gpntORf_tbOPT.foldLeft(init)((gp, lentry) => lentry match {
 	  case ~(TableFilter(null, expr), None) => TableFilter(gp, expr)
-//	  case ~(TableFilter(null, expr), Some(TriplesBlock(List()))) => TableFilter(gp, expr)
 	  case x => error("found " + x)
 	})
 	// (tbOPT, gpntORf_tbOPT) match {
