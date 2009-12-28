@@ -198,10 +198,14 @@ object RDB2RDF {
 
   def findVars(gp:GraphPattern):Set[Var] = {
     gp match {
-      case TriplesBlock(triplepatterns, filter:SparqlExpression) => {
+      case TableFilter(gp2:GraphPattern, expr:SparqlExpression) =>
+	findVars(gp2)
+
+      case TriplesBlock(triplepatterns) =>
 	/* Examine each triple, updating the compilation state. */
 	triplepatterns.foldLeft(Set[Var]())((x, y) => x ++ findVars(y))
-      }
+
+      case x => error("no code to handle " + x)
     }
   }
 
@@ -251,24 +255,31 @@ object RDB2RDF {
     PrimaryExpressionNotNull(aattr)
   }
 
-  def mapGraphPattern(db:DatabaseDesc, stateP:R2RState, gp:GraphPattern, pk:PrimaryKey, enforeForeignKeys:Boolean):R2RState = {
-    var state = stateP
+  def mapGraphPattern(db:DatabaseDesc, state:R2RState, gp:GraphPattern, pk:PrimaryKey, enforeForeignKeys:Boolean):R2RState = {
     gp match {
-      case TriplesBlock(triplepatterns, filter:SparqlExpression) => {
-	/* Examine each triple, updating the compilation state. */
-	triplepatterns.foreach(s => state = bindOnPredicate(db, state, s, pk, true))
+      case TableFilter(gp2:GraphPattern, expr:SparqlExpression) => {
+	val state2 = mapGraphPattern(db, state, gp2, pk, enforeForeignKeys)
 
 	/* Add constraints for all the FILTERS */
 	val filterExprs:Set[PrimaryExpression] =
-	  filter.conjuncts.toSet map ((x:SparqlPrimaryExpression) => filter2expr(state.varmap, x))
+	  expr.conjuncts.toSet map ((x:SparqlPrimaryExpression) => filter2expr(state2.varmap, x))
+
+	R2RState(state2.joins, state2.varmap, state2.exprs ++ filterExprs)
+      }
+      case TriplesBlock(triplepatterns) => {
+	var state2 = state
+
+	/* Examine each triple, updating the compilation state. */
+	triplepatterns.foreach(s => state2 = bindOnPredicate(db, state2, s, pk, true))
 
 	// val allVars:Set[Var] = triples.triplepatterns.foldLeft(Set[Var]())((x, y) => x ++ findVars(y))
 	val allVars:Set[Var] = findVars(gp)
-	val nullExprs = allVars map (nullGuard(state.varmap, _))
+	val nullExprs = allVars map (nullGuard(state2.varmap, _))
 	//val exprWithNull = allVars.foldLeft(exprs)((exprs,s) => nullGuard(exprs, r2rState.varmap, s))
 
-	R2RState(state.joins, state.varmap, state.exprs ++ filterExprs ++ nullExprs)
+	R2RState(state2.joins, state2.varmap, state2.exprs ++ nullExprs)
       }
+      case x => error("no code to handle " + x)
     }
   }
 

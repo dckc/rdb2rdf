@@ -15,10 +15,10 @@ case class SparqlSelect(attrs:SparqlAttributeList, gp:GraphPattern)
 case class SparqlAttributeList(attributelist:List[Var])
 
 sealed abstract class GraphPattern
-case class TriplesBlock(triplepatterns:List[TriplePattern], filter:SparqlExpression) extends GraphPattern
+case class TriplesBlock(triplepatterns:List[TriplePattern]) extends GraphPattern
+case class EmptyGraphPattern() extends GraphPattern
 case class TableConjunction(gps:List[GraphPattern]) extends GraphPattern
 case class TableDisjunction(gps:List[GraphPattern]) extends GraphPattern
-case class ParserTableFilter(expr:SparqlExpression) extends GraphPattern
 case class TableFilter(gp:GraphPattern, expr:SparqlExpression) extends GraphPattern
 case class OptionalGraphPattern(gp:GraphPattern) extends GraphPattern
 case class GraphGraphPattern(gp:GraphPattern) extends GraphPattern
@@ -94,16 +94,26 @@ case class Sparql() extends JavaTokenParsers {
       case "{"~tbOPT~gpntORf_tbOPT~"}" => {
 	val l:Option[GraphPattern] = tbOPT
 	val r:List[~[GraphPattern,Option[TriplesBlock]]] = gpntORf_tbOPT
-	(tbOPT, gpntORf_tbOPT) match {
-	  case (Some(x), list) => {
-	    if (list.size == 0)
-	      x
-	    else {
-	      println("ignoring " + list)
-	      TableConjunction(List[GraphPattern](x))
-	    }
-	  }
+	var init = tbOPT match {
+	  case Some(x) => x
+	  case _ => EmptyGraphPattern()
 	}
+	gpntORf_tbOPT.foldLeft(init)((gp, lentry) => lentry match {
+//	  case ~(TableFilter(null, expr), None) => TableFilter(gp, expr)
+	  case ~(TableFilter(null, expr), Some(TriplesBlock(List()))) => TableFilter(gp, expr)
+	  case x => error("found " + x)
+	})
+	// (tbOPT, gpntORf_tbOPT) match {
+	//   case (Some(tb1), list) => {
+	//     var gp = tb1
+	//     if (list.size == 0)
+	//       x
+	//     else {
+	//       println("ignoring " + list)
+	//       TableConjunction(List[GraphPattern](x))
+	//     }
+	//   }
+	// }
       }
     }
   )
@@ -112,18 +122,11 @@ case class Sparql() extends JavaTokenParsers {
       "OPTIONAL"~groupgraphpattern ^^ { case "OPTIONAL"~ggp => OptionalGraphPattern(ggp) }
     | rep1sep(groupgraphpattern, "UNION") ^^ { x => if (x.size > 1) TableDisjunction(x) else x(0) }
     | "GRAPH"~uri~groupgraphpattern ^^ { case "GRAPH"~u~ggp => GraphGraphPattern(ggp) }
-    | filter ^^ { x => ParserTableFilter(x) }
+    | filter ^^ { x => TableFilter(null, x) }
   )
 
   def triplesblock:Parser[TriplesBlock] =
-    repsep(triplepattern, ".") ~ opt(filter) ^^ {
-      case pats~filter =>
-	val sparqlExpression:SparqlExpression = filter match {
-	  case None => SparqlExpression(List())
-	  case Some(f) => f
-	}
-      TriplesBlock(pats, sparqlExpression)
-    }
+    repsep(triplepattern, ".") ^^ { case pats => TriplesBlock(pats) }
 
   def triplepattern:Parser[TriplePattern] =
     subject ~ predicate ~ objectt ^^ { case s~p~o => TriplePattern(s, p, o) }
