@@ -90,7 +90,6 @@ case class Sparql() extends JavaTokenParsers {
 
   def groupgraphpattern:Parser[GraphPattern] = (
     "{" ~ opt(triplesblock) ~ rep(graphpatternnottriplesORfilter ~ opt(triplesblock)) ~ "}" ^^
-    //"{" ~ opt(triplesblock) ~ rep(graphpatternnottriplesORfilter_OPTtriplesblock) ~ "}" ^^
     {
       case "{"~tbOPT~gpntORf_tbOPT~"}" => {
 	val l:Option[GraphPattern] = tbOPT
@@ -108,9 +107,6 @@ case class Sparql() extends JavaTokenParsers {
       }
     }
   )
-
-  def graphpatternnottriplesORfilter_OPTtriplesblock:Parser[(GraphPattern, Option[TriplesBlock])] =
-    graphpatternnottriplesORfilter ~ opt(triplesblock) ^^ { case a~b => (a, b) }
 
   def graphpatternnottriplesORfilter:Parser[GraphPattern] = (
       "OPTIONAL"~groupgraphpattern ^^ { case "OPTIONAL"~ggp => OptionalGraphPattern(ggp) }
