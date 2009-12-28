@@ -182,29 +182,115 @@ SELECT ?empName ?grandManagName {
     a.parseAll(a.select, e).get
   }
 
-//   test("parse a nested bgp") {
-//     val a = Sparql()
-//     val e = """
-// SELECT ?x { { ?x <p> ?y} }
-// """
-//     a.parseAll(a.select, e).get
-//   }
+  test("parse a nested bgp") {
+    val a = Sparql()
+    val e = """
+SELECT ?x { { ?x <http://hr.example/DB/Employee#manager> ?y} }
+"""
+    val tps =
+      SparqlSelect(
+	SparqlAttributeList(List(Var("x"))),
+	TriplesBlock(
+	  List(
+	    TriplePattern(
+	      SVar(Var("x")),
+	      PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("manager")),
+	      OVar(Var("y"))))))
+    assert(tps === a.parseAll(a.select, e).get)
+  }
 
-//   test("parse a conjunction") {
-//     val a = Sparql()
-//     val e = """
-// SELECT ?x { { ?x <p> ?y} { ?x <p> ?y} }
-// """
-//     a.parseAll(a.select, e).get
-//   }
+  test("parse a conjunction") {
+    val a = Sparql()
+    val e = """
+SELECT ?x { { ?x <http://hr.example/DB/Employee#manager> ?y} { ?x <http://hr.example/DB/Employee#manager> ?y} }
+"""
+    val tps =
+      SparqlSelect(
+	SparqlAttributeList(List(Var("x"))),
+	TableConjunction(List(
+	  TriplesBlock(
+	    List(
+	      TriplePattern(
+		SVar(Var("x")),
+		PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("manager")),
+		OVar(Var("y"))))),
+	  TriplesBlock(
+	    List(
+	      TriplePattern(
+		SVar(Var("x")),
+		PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("manager")),
+		OVar(Var("y"))))))))
+    assert(tps === a.parseAll(a.select, e).get)
+  }
 
-//   test("parse a disjunction") {
-//     val a = Sparql()
-//     val e = """
-// SELECT ?x { { ?x <p> ?y} UNION { ?x <p> ?y} }
-// """
-//     a.parseAll(a.select, e).get
-//   }
+  test("parse a disjunction") {
+    val a = Sparql()
+    val e = """
+SELECT ?x { { ?x <http://hr.example/DB/Employee#manager> ?y} UNION { ?x <http://hr.example/DB/Employee#manager> ?y} }
+"""
+    val tps =
+      SparqlSelect(
+	SparqlAttributeList(List(Var("x"))),
+	TableDisjunction(List(
+	  TriplesBlock(
+	    List(
+	      TriplePattern(
+		SVar(Var("x")),
+		PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("manager")),
+		OVar(Var("y"))))),
+	  TriplesBlock(
+	    List(
+	      TriplePattern(
+		SVar(Var("x")),
+		PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("manager")),
+		OVar(Var("y"))))))))
+    assert(tps === a.parseAll(a.select, e).get)
+  }
+
+  test("parse an optional") {
+    val a = Sparql()
+    val e = """
+SELECT ?x { { ?x <http://hr.example/DB/Employee#manager> ?y} OPTIONAL { ?x <http://hr.example/DB/Employee#manager> ?y} }
+"""
+    val tps =
+      SparqlSelect(
+	SparqlAttributeList(List(Var("x"))),
+	TableConjunction(List(
+	  TriplesBlock(
+	    List(
+	      TriplePattern(
+		SVar(Var("x")),
+		PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("manager")),
+		OVar(Var("y"))))),
+	  OptionalGraphPattern(
+	    TriplesBlock(
+	      List(
+		TriplePattern(
+		  SVar(Var("x")),
+		  PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("manager")),
+		  OVar(Var("y")))))))))
+    assert(tps === a.parseAll(a.select, e).get)
+  }
+
+  test("parse a leading optional") {
+    val a = Sparql()
+    val e = """
+SELECT ?x { OPTIONAL { ?x <http://hr.example/DB/Employee#manager> ?y} }
+"""
+    val tps =
+      SparqlSelect(
+	SparqlAttributeList(List(Var("x"))),
+	TableConjunction(List(
+	  EmptyGraphPattern(),
+	  OptionalGraphPattern(
+	    TriplesBlock(
+	      List(
+		TriplePattern(
+		  SVar(Var("x")),
+		  PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("manager")),
+		  OVar(Var("y")))))))))
+    assert(tps === a.parseAll(a.select, e).get)
+  }
 
   test("decompose a predicate uri in stem, rel and attr") {
     val uri = "http://hr.example/our/favorite/DB/Employee#lastName"

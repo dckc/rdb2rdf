@@ -98,6 +98,15 @@ case class Sparql() extends JavaTokenParsers {
 	}
 	gpntORf_tbOPT.foldLeft(init)((gp, lentry) => lentry match {
 	  case ~(TableFilter(null, expr), None) => TableFilter(gp, expr)
+	  case ~(TriplesBlock(triples), None) => gp match {
+	    case EmptyGraphPattern() => TriplesBlock(triples)
+	    case TriplesBlock(triples2) => TableConjunction(List(gp, TriplesBlock(triples2)))
+	  }
+	  case ~(TableDisjunction(list), None) => gp match {
+	    case EmptyGraphPattern() => TableDisjunction(list)
+	    case x => TableConjunction(List(gp, x))
+	  }
+	  case ~(OptionalGraphPattern(gp2), None) => TableConjunction(List(gp, OptionalGraphPattern(gp2)))
 	  case x => error("found " + x)
 	})
       }
