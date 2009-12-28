@@ -99,8 +99,8 @@ case class Sparql() extends JavaTokenParsers {
 	  case _ => EmptyGraphPattern()
 	}
 	gpntORf_tbOPT.foldLeft(init)((gp, lentry) => lentry match {
-//	  case ~(TableFilter(null, expr), None) => TableFilter(gp, expr)
-	  case ~(TableFilter(null, expr), Some(TriplesBlock(List()))) => TableFilter(gp, expr)
+	  case ~(TableFilter(null, expr), None) => TableFilter(gp, expr)
+//	  case ~(TableFilter(null, expr), Some(TriplesBlock(List()))) => TableFilter(gp, expr)
 	  case x => error("found " + x)
 	})
 	// (tbOPT, gpntORf_tbOPT) match {
@@ -126,7 +126,7 @@ case class Sparql() extends JavaTokenParsers {
   )
 
   def triplesblock:Parser[TriplesBlock] =
-    repsep(triplepattern, ".") ^^ { case pats => TriplesBlock(pats) }
+    rep1sep(triplepattern, ".") ^^ { case pats => TriplesBlock(pats) }
 
   def triplepattern:Parser[TriplePattern] =
     subject ~ predicate ~ objectt ^^ { case s~p~o => TriplePattern(s, p, o) }
