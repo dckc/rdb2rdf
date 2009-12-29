@@ -6,6 +6,7 @@ import java.net.URI
 class SQLTest extends FunSuite {
 
   test("parse SQLbgp") {
+    // AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))
     val a = Sql()
     val e = """
 SELECT R_emp.lastName AS A_empName, R_manager.lastName AS A_managName
@@ -83,30 +84,81 @@ SELECT R_emp.lastName AS A_empName, R_grandManager.lastName AS A_grandManagName
    AND R_emp.lastName IS NOT NULL AND R_grandManager.lastName IS NOT NULL
 """
     val expected = Select(AttributeList(Set(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_emp")), Attribute(Name("lastName"))),
-							    AttrAlias(Name("A_empName"))),
-					     NamedAttribute(RelAliasAttribute(RelAlias(Name("R_grandManager")),Attribute(Name("lastName"))),
-							    AttrAlias(Name("A_grandManagName"))))),
+							   AttrAlias(Name("A_empName"))),
+					    NamedAttribute(RelAliasAttribute(RelAlias(Name("R_grandManager")),Attribute(Name("lastName"))),
+							   AttrAlias(Name("A_grandManagName"))))),
 			  TableList(Set(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp"))),
-					 AliasedResource(Relation(Name("Manage")),RelAlias(Name("R_lower"))),
-					 AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_manager"))),
-					 AliasedResource(Relation(Name("Manage")),RelAlias(Name("R_upper"))),
-					 AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_grandManager"))))),
+					AliasedResource(Relation(Name("Manage")),RelAlias(Name("R_lower"))),
+					AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_manager"))),
+					AliasedResource(Relation(Name("Manage")),RelAlias(Name("R_upper"))),
+					AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_grandManager"))))),
 			  Expression(Set(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_lower")),Attribute(Name("manages"))),
-							      RValueAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("id"))))),
-					  PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id"))),
-							      RValueAttr(RelAliasAttribute(RelAlias(Name("R_lower")),Attribute(Name("manager"))))),
-					  PrimaryExpressionLt(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("birthday"))),
-							      RValueAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("birthday"))))),
-					  PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_upper")),Attribute(Name("manages"))),
-							      RValueAttr(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id"))))),
-					  PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_grandManager")),Attribute(Name("id"))),
-							      RValueAttr(RelAliasAttribute(RelAlias(Name("R_upper")),Attribute(Name("manager"))))),
-					  PrimaryExpressionLt(RelAliasAttribute(RelAlias(Name("R_grandManager")),Attribute(Name("birthday"))),
-							      RValueAttr(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("birthday"))))),
-					  PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("lastName")))),
-					  PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_grandManager")),Attribute(Name("lastName")))))))
+							     RValueAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("id"))))),
+					 PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id"))),
+							     RValueAttr(RelAliasAttribute(RelAlias(Name("R_lower")),Attribute(Name("manager"))))),
+					 PrimaryExpressionLt(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("birthday"))),
+							     RValueAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("birthday"))))),
+					 PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_upper")),Attribute(Name("manages"))),
+							     RValueAttr(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id"))))),
+					 PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_grandManager")),Attribute(Name("id"))),
+							     RValueAttr(RelAliasAttribute(RelAlias(Name("R_upper")),Attribute(Name("manager"))))),
+					 PrimaryExpressionLt(RelAliasAttribute(RelAlias(Name("R_grandManager")),Attribute(Name("birthday"))),
+							     RValueAttr(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("birthday"))))),
+					 PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("lastName")))),
+					 PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_grandManager")),Attribute(Name("lastName")))))))
     assert(expected === (a.parseAll(a.select, e).get))
   }
 
+  test("parse disj1") {
+    val a = Sql()
+    val e = """
+SELECT R_union1.name AS A_name
+  FROM Employee AS R_who
+       INNER JOIN (
+         SELECT R_manager.lastName AS A_name, R_above.manages AS A_who
+                FROM Manage AS R_above
+                INNER JOIN Employee AS R_manager
+          WHERE R_above.manager=R_manager.id AND R_manager.lastName IS NOT NULL
+       UNION
+         SELECT R_managed.lastName AS A_name, R_below.manager AS A_who
+                FROM Manage AS R_below
+                INNER JOIN Employee AS R_managed
+          WHERE R_below.manages=R_managed.id AND R_managed.lastName IS NOT NULL
+       ) AS R_union1
+ WHERE R_union1.A_who=R_who.id AND R_who.lastName="Smith"
+"""
+    val expected = Select(AttributeList(Set(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_union1")), Attribute(Name("name"))),
+							   AttrAlias(Name("A_name"))))),
+			  TableList(Set(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_who"))),
+					AliasedResource(Subselect(Union(Set(
+					  Select(AttributeList(Set(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_manager")), Attribute(Name("lastName"))),
+										  AttrAlias(Name("A_name"))), 
+								   NamedAttribute(RelAliasAttribute(RelAlias(Name("R_above")), Attribute(Name("manages"))),
+										  AttrAlias(Name("A_who"))))),
+						 TableList(Set(
+						   AliasedResource(Relation(Name("Manage")),RelAlias(Name("R_above"))),
+						   AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_manager")))
+						 )), 
+						 Expression(Set(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_above")),Attribute(Name("manager"))),
+									 RValueAttr(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id"))))),
+						     PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("lastName"))))))), 
+					  Select(AttributeList(Set(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_managed")), Attribute(Name("lastName"))),
+										  AttrAlias(Name("A_name"))), 
+								   NamedAttribute(RelAliasAttribute(RelAlias(Name("R_below")), Attribute(Name("manager"))),
+										  AttrAlias(Name("A_who"))))),
+						 TableList(Set(
+						   AliasedResource(Relation(Name("Manage")),RelAlias(Name("R_below"))),
+						   AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_managed")))
+						 )), 
+						 Expression(Set(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_below")),Attribute(Name("manages"))),
+									 RValueAttr(RelAliasAttribute(RelAlias(Name("R_managed")),Attribute(Name("id"))))),
+						     PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_managed")),Attribute(Name("lastName")))))))))),
+							RelAlias(Name("R_union1"))))), 
+			  Expression(Set(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_union1")),Attribute(Name("A_who"))),
+							     RValueAttr(RelAliasAttribute(RelAlias(Name("R_who")),Attribute(Name("id"))))),
+					 PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_who")),Attribute(Name("lastName"))),
+							     RValueTyped(SQLDatatype.STRING,Name("Smith"))))))
+    assert(expected === (a.parseAll(a.select, e).get))
+  }
 
 }
