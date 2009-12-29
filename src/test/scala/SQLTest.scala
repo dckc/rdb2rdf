@@ -140,8 +140,8 @@ SELECT R_union1.name AS A_name
 						   AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_manager")))
 						 )), 
 						 Expression(Set(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_above")),Attribute(Name("manager"))),
-									 RValueAttr(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id"))))),
-						     PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("lastName"))))))), 
+										    RValueAttr(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id"))))),
+								PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("lastName"))))))), 
 					  Select(AttributeList(Set(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_managed")), Attribute(Name("lastName"))),
 										  AttrAlias(Name("A_name"))), 
 								   NamedAttribute(RelAliasAttribute(RelAlias(Name("R_below")), Attribute(Name("manager"))),
@@ -151,8 +151,8 @@ SELECT R_union1.name AS A_name
 						   AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_managed")))
 						 )), 
 						 Expression(Set(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_below")),Attribute(Name("manages"))),
-									 RValueAttr(RelAliasAttribute(RelAlias(Name("R_managed")),Attribute(Name("id"))))),
-						     PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_managed")),Attribute(Name("lastName")))))))))),
+										    RValueAttr(RelAliasAttribute(RelAlias(Name("R_managed")),Attribute(Name("id"))))),
+								PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_managed")),Attribute(Name("lastName")))))))))),
 							RelAlias(Name("R_union1"))))), 
 			  Expression(Set(PrimaryExpressionEq(RelAliasAttribute(RelAlias(Name("R_union1")),Attribute(Name("A_who"))),
 							     RValueAttr(RelAliasAttribute(RelAlias(Name("R_who")),Attribute(Name("id"))))),
