@@ -96,6 +96,7 @@ case class Sparql() extends JavaTokenParsers {
 	  case Some(x) => x
 	  case _ => EmptyGraphPattern()
 	}
+	// println("groupgraphpattern: " + tbOPT + " " + gpntORf_tbOPT)
 	gpntORf_tbOPT.foldLeft(init)((gp, lentry) => lentry match {
 	  case ~(TableFilter(null, expr), None) => TableFilter(gp, expr)
 	  case ~(TriplesBlock(triples), None) => gp match {
@@ -104,7 +105,7 @@ case class Sparql() extends JavaTokenParsers {
 	  }
 	  case ~(TableDisjunction(list), None) => gp match {
 	    case EmptyGraphPattern() => TableDisjunction(list)
-	    case x => TableConjunction(List(gp, x))
+	    case x => TableConjunction(List(gp, TableDisjunction(list)))
 	  }
 	  case ~(OptionalGraphPattern(gp2), None) => TableConjunction(List(gp, OptionalGraphPattern(gp2)))
 	  case x => error("found " + x)

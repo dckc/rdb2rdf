@@ -292,6 +292,63 @@ SELECT ?x { OPTIONAL { ?x <http://hr.example/DB/Employee#manager> ?y} }
     assert(tps === a.parseAll(a.select, e).get)
   }
 
+  test("parse disj1") {
+    val a = Sparql()
+    val e = """
+SELECT ?name
+       { ?who <http://hr.example/DB/Employee#lastName> "Smith"^^<http://www.w3.org/2001/XMLSchema#string>
+         { ?above   <http://hr.example/DB/Manage#manages> ?who .
+           ?above   <http://hr.example/DB/Manage#manager> ?manager .
+           ?manager <http://hr.example/DB/Employee#lastName>  ?name }
+         UNION
+         { ?below   <http://hr.example/DB/Manage#manager> ?who .
+           ?below   <http://hr.example/DB/Manage#manages> ?managed .
+           ?managed <http://hr.example/DB/Employee#lastName>  ?name } }
+"""
+    val tps =
+      SparqlSelect(
+	SparqlAttributeList(List(Var("name"))),
+	TableConjunction(List(
+	  TriplesBlock(
+	    List(
+	      TriplePattern(
+		SVar(Var("who")),
+		PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")),
+		OLit(SparqlLiteral(RDFLiteral("Smith",Datatype(new URI("http://www.w3.org/2001/XMLSchema#string")))))))),
+	  TableDisjunction(List(
+	    TriplesBlock(
+	      List(
+		TriplePattern(
+		  SVar(Var("above")),
+		  PUri(Stem("http://hr.example/DB"),Rel("Manage"),Attr("manages")),
+		  OVar(Var("who"))),
+		TriplePattern(
+		  SVar(Var("above")),
+		  PUri(Stem("http://hr.example/DB"),Rel("Manage"),Attr("manager")),
+		  OVar(Var("manager"))),
+		TriplePattern(
+		  SVar(Var("manager")),
+		  PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")),
+		  OVar(Var("name")))
+	      )),
+	    TriplesBlock(
+	      List(
+		TriplePattern(
+		  SVar(Var("below")),
+		  PUri(Stem("http://hr.example/DB"),Rel("Manage"),Attr("manager")),
+		  OVar(Var("who"))),
+		TriplePattern(
+		  SVar(Var("below")),
+		  PUri(Stem("http://hr.example/DB"),Rel("Manage"),Attr("manages")),
+		  OVar(Var("managed"))),
+		TriplePattern(
+		  SVar(Var("managed")),
+		  PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")),
+		  OVar(Var("name")))
+	      )))))))
+    assert(tps === a.parseAll(a.select, e).get)
+  }
+
   test("decompose a predicate uri in stem, rel and attr") {
     val uri = "http://hr.example/our/favorite/DB/Employee#lastName"
     val puri:PUri = Sparql.parsePredicateURI(uri)
