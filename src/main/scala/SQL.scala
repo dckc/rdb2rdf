@@ -4,63 +4,63 @@ import scala.util.parsing.combinator._
 import java.net.URI
 
 case class Union(disjoints:Set[Select]) {
-  // override def toString = (disjoints mkString ("\nUNION\n"))
+  override def toString = (disjoints mkString ("\nUNION\n"))
 }
 case class Select(attributelist:AttributeList, tablelist:TableList, expression:Expression) {
-  // override def toString = attributelist+"\n"+tablelist+"\n"+expression
+  override def toString = attributelist+"\n"+tablelist+"\n"+expression
 }
 case class AttributeList(attributes:Set[NamedAttribute]) {
   // foo, bar
-  // override def toString = "SELECT "+(attributes mkString (",\n       "))
+  override def toString = "SELECT "+(attributes mkString (",\n       "))
 }
 case class NamedAttribute(fqattribute:RelAliasAttribute, attralias:AttrAlias) {
-  // override def toString = fqattribute + " AS " + attralias
+  override def toString = fqattribute + " AS " + attralias
 }
 //case class RelAttribute(relation:Relation, attribute:Attribute) c.f. ForeignKey
 case class RelAliasAttribute(relalias:RelAlias, attribute:Attribute) {
-  // override def toString = relalias + "." + attribute
+  override def toString = relalias + "." + attribute
 }
 case class Attribute(n:Name) {
-  // override def toString = n.s /* "'" + n.s + "'" */
+  override def toString = n.s /* "'" + n.s + "'" */
 }
 case class AttrAlias(n:Name) {
-  // override def toString = n.s /* "'" + n.s + "'" */
+  override def toString = n.s /* "'" + n.s + "'" */
 }
 sealed abstract class RelationORSubselect
 case class Relation(n:Name) extends RelationORSubselect {
-  // override def toString = n.s /* "'" + n.s + "'" */
+  override def toString = n.s /* "'" + n.s + "'" */
 }
 case class Subselect(union:Union) extends RelationORSubselect {
-  // override def toString = "(\n" + union + "\n)"
+  override def toString = "(\n" + union + "\n)"
 }
 case class RelAlias(n:Name) {
-  // override def toString = n.s /* "'" + n.s + "'" */
+  override def toString = n.s /* "'" + n.s + "'" */
 }
 case class TableList(joins:Set[AliasedResource]) {
-  // override def toString = "  FROM " + (joins mkString ("\n       INNER JOIN "))
+  override def toString = "  FROM " + (joins mkString ("\n       INNER JOIN "))
 }
 case class AliasedResource(rel:RelationORSubselect, as:RelAlias) {
-  // override def toString = rel + " AS " + as
+  override def toString = rel + " AS " + as
 }
 case class Expression(conjuncts:Set[PrimaryExpression]) {
-  // override def toString = " WHERE " + (conjuncts mkString ("\n       AND "))
+  override def toString = " WHERE " + (conjuncts mkString ("\n       AND "))
 }
 sealed abstract class PrimaryExpression
 case class PrimaryExpressionEq(l:RelAliasAttribute, r:RValue) extends PrimaryExpression {
-  // override def toString = l + "=" + r
+  override def toString = l + "=" + r
 }
 case class PrimaryExpressionLt(l:RelAliasAttribute, r:RValue) extends PrimaryExpression {
-  // override def toString = l + "<" + r
+  override def toString = l + "<" + r
 }
 case class PrimaryExpressionNotNull(l:RelAliasAttribute) extends PrimaryExpression {
-  // override def toString = l + " IS NOT NULL"
+  override def toString = l + " IS NOT NULL"
 }
 sealed abstract class RValue
 case class RValueAttr(fqattribute:RelAliasAttribute) extends RValue {
-  // override def toString = "" + fqattribute
+  override def toString = "" + fqattribute
 }
 case class RValueTyped(datatype:SQLDatatype, i:Name) extends RValue {
-  // override def toString = i.s /* "'" + i.s + "'" */ /* + datatype */
+  override def toString = i.s /* "'" + i.s + "'" */ /* + datatype */
 }
 case class Name(s:String)
 
@@ -69,7 +69,7 @@ object Name {
 }
 
 case class SQLDatatype(name:String) {
-  // override def toString = "/* " + name + " */"
+  override def toString = "/* " + name + " */"
 }
 object SQLDatatype {
   val STRING = SQLDatatype("String")
