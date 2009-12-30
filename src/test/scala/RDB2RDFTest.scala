@@ -241,16 +241,20 @@ SELECT R_union1.A_name AS A_name
   FROM Employee AS R_who
        INNER JOIN (
          SELECT R_manager.lastName AS A_name, R_above.manages AS A_who
+                , R_above.id AS A_above, R_above.manager AS A_manager
                 FROM Manage AS R_above
                 INNER JOIN Employee AS R_manager
           WHERE R_above.manager=R_manager.id AND R_manager.lastName IS NOT NULL
+                AND R_above.manager IS NOT NULL AND R_above.id IS NOT NULL AND R_above.manages IS NOT NULL
        UNION
          SELECT R_managed.lastName AS A_name, R_below.manager AS A_who
+                , R_below.id AS A_below, R_below.manages AS A_managed
                 FROM Manage AS R_below
                 INNER JOIN Employee AS R_managed
           WHERE R_below.manages=R_managed.id AND R_managed.lastName IS NOT NULL
+                AND R_below.manager IS NOT NULL AND R_below.id IS NOT NULL AND R_below.manages IS NOT NULL
        ) AS R_union1
- WHERE R_union1.A_who=R_who.id AND R_who.lastName="Smith"
+ WHERE R_who.id=R_union1.A_who AND R_who.lastName="Smith" AND R_who.id IS NOT NULL
 """).get
     assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false) === sqlSelect)
   }

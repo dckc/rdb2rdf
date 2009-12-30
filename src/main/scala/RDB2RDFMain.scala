@@ -285,8 +285,8 @@ constrainMe }
 	list.foldLeft(state)((incState,s) => mapGraphPattern(db, incState, s, pk, enforeForeignKeys))
       }
       case TableDisjunction(list) => {
-	val unionAlias = RelAlias(Name("R_union1"))
-	var initDisjoints:Set[Select] = Set()
+	val unionAlias = RelAlias(Name("R_union" + state.joins.size))
+	val initDisjoints:Set[Select] = Set()
 	val emptyState = R2RState(
 	  Set[AliasedResource](), 
 	  Map[Var, SQL2RDFValueMapper](), 
@@ -305,11 +305,8 @@ constrainMe }
 	    TableList(disjointState.joins),
 	    Expression(disjointState.exprs)
 	  )
-	  println("sel: " + sel)
-	  println("outerState: " + outerState)
 	  val outerState2 = disjointVars.foldLeft(outerState)((myState, v) => {
-	    val unionAliasAttr = RelAliasAttribute(unionAlias, varToAttribute(disjointState.varmap, v).attribute)
-	    println("examining " + v)
+	    val unionAliasAttr = RelAliasAttribute(unionAlias, Attribute(Name("A_" + v.s)))
 	    if (myState.varmap.contains(v)) {
 	      /* The variable has already been bound. */
 	      if (varToAttribute(myState.varmap, v) == unionAliasAttr)
@@ -320,12 +317,11 @@ constrainMe }
 		R2RState(myState.joins, myState.varmap, myState.exprs + PrimaryExpressionEq(varToAttribute(myState.varmap, v), RValueAttr(unionAliasAttr)))
 	    } else {
 	      /* This variable is new to the outer context. */
-	      val unionAttr = RelAliasAttribute(unionAlias, Attribute(Name("A_" + v.s)))
 	      val mapper:SQL2RDFValueMapper = disjointState.varmap(v) match {
-		case RDFNoder(rel, constrainMe)  => RDFNoder(rel, unionAttr)
-		case StringMapper(constrainMe)   => StringMapper(unionAttr)
-		case IntMapper(constrainMe)      => IntMapper(unionAttr)
-		case RDFBNoder(rel, constrainMe) => RDFBNoder(rel, unionAttr)
+		case RDFNoder(rel, constrainMe)  => RDFNoder(rel, unionAliasAttr)
+		case StringMapper(constrainMe)   => StringMapper(unionAliasAttr)
+		case IntMapper(constrainMe)      => IntMapper(unionAliasAttr)
+		case RDFBNoder(rel, constrainMe) => RDFBNoder(rel, unionAliasAttr)
 	      }
 	      R2RState(myState.joins, myState.varmap + (v -> mapper), myState.exprs)
 	    }
