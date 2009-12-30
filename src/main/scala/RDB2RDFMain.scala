@@ -16,8 +16,9 @@ object RDB2RDF {
   case class R2RState(joins:Set[AliasedResource], varmap:Map[Var, SQL2RDFValueMapper], exprs:Set[PrimaryExpression])
 
   sealed abstract class SQL2RDFValueMapper(relaliasattr:RelAliasAttribute)
-  case class StringMapper(relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
   case class IntMapper(relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
+  case class StringMapper(relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
+  case class DateMapper(relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
   case class RDFNoder(relation:Relation, relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
   case class RDFBNoder(relation:Relation, relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
 
@@ -108,10 +109,12 @@ constrainMe }
 	    reldesc.attributes(constrainMe.attribute) match {
 	      case ForeignKey(fkrel, fkattr) =>
 		RDFNoder(rel, constrainMe)
-	      case Value(SQLDatatype("String")) =>
-		StringMapper(constrainMe)
 	      case Value(SQLDatatype("Int")) =>
 		IntMapper(constrainMe)
+	      case Value(SQLDatatype("String")) =>
+		StringMapper(constrainMe)
+	      case Value(SQLDatatype("Date")) =>
+		DateMapper(constrainMe)
 	    }
 	  } else {
 	    RDFBNoder(rel, constrainMe)
@@ -127,8 +130,9 @@ constrainMe }
   }
   def toString(mapper:SQL2RDFValueMapper) : String = {
     mapper match {
-      case StringMapper(relalias) => "STRING: " + toString(relalias)
       case IntMapper(relalias) => "INT: " + toString(relalias)
+      case StringMapper(relalias) => "STRING: " + toString(relalias)
+      case DateMapper(relalias) => "DATE: " + toString(relalias)
       case RDFNoder(relation, relalias) => "RDFNoder: " + relation.n.s + ", " + toString(relalias)
       case RDFBNoder(relation, relalias) => "RDFBNoder: " + relation.n.s + ", " + toString(relalias)
     }
@@ -213,8 +217,9 @@ constrainMe }
 
   def varToAttribute(varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):RelAliasAttribute = {
     varmap(vvar) match {
-      case StringMapper(relalias) => relalias
       case IntMapper(relalias) => relalias
+      case StringMapper(relalias) => relalias
+      case DateMapper(relalias) => relalias
       case RDFNoder(relation, relalias) => relalias
       case RDFBNoder(relation, relalias) => relalias
     }
@@ -249,8 +254,9 @@ constrainMe }
   def nullGuard(varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):PrimaryExpression = {
     val mapper:SQL2RDFValueMapper = varmap(vvar)
     val aattr = mapper match {
-      case StringMapper(relalias) => relalias
       case IntMapper(relalias) => relalias
+      case StringMapper(relalias) => relalias
+      case DateMapper(relalias) => relalias
       case RDFNoder(relation, relalias) => relalias
       case RDFBNoder(relation, relalias) => relalias
     }
@@ -318,9 +324,10 @@ constrainMe }
 	    } else {
 	      /* This variable is new to the outer context. */
 	      val mapper:SQL2RDFValueMapper = disjointState.varmap(v) match {
-		case RDFNoder(rel, constrainMe)  => RDFNoder(rel, unionAliasAttr)
-		case StringMapper(constrainMe)   => StringMapper(unionAliasAttr)
 		case IntMapper(constrainMe)      => IntMapper(unionAliasAttr)
+		case StringMapper(constrainMe)   => StringMapper(unionAliasAttr)
+		case DateMapper(constrainMe)   => DateMapper(unionAliasAttr)
+		case RDFNoder(rel, constrainMe)  => RDFNoder(rel, unionAliasAttr)
 		case RDFBNoder(rel, constrainMe) => RDFBNoder(rel, unionAliasAttr)
 	      }
 	      R2RState(myState.joins, myState.varmap + (v -> mapper), myState.exprs)

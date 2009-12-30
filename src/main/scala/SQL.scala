@@ -74,6 +74,7 @@ case class SQLDatatype(name:String) {
 object SQLDatatype {
   val STRING = SQLDatatype("String")
   val INTEGER = SQLDatatype("Int")
+  val DATE = SQLDatatype("Date")
 }
 
 sealed abstract class ValueDescription

@@ -156,6 +156,8 @@ case class Sparql() extends JavaTokenParsers {
 	case lit~"^^"~dt => SparqlLiteral(RDFLiteral(lit.substring(1,lit.size - 1), dt match {
 	  case "http://www.w3.org/2001/XMLSchema#string" => RDFLiteral.StringDatatype
 	  case "http://www.w3.org/2001/XMLSchema#integer" => RDFLiteral.IntegerDatatype
+	  case "http://www.w3.org/2001/XMLSchema#date" => RDFLiteral.DateDatatype
+	  // case "http://www.w3.org/2001/XMLSchema#dateTime" => RDFLiteral.DateTimeDatatype
 	  case x => error("only programed to deal with string and integer, not " + x)
 	}))
       }

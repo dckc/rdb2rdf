@@ -10,7 +10,7 @@ class RDB2RDFTest extends FunSuite {
 	RelationDesc(Option(Attribute("id")), 
 		     Map(Attribute("id") -> Value(SQLDatatype.INTEGER),
 			 Attribute("lastName") -> Value(SQLDatatype.STRING),
-			 Attribute("birthday") -> Value(SQLDatatype.INTEGER), // !!!
+			 Attribute("birthday") -> Value(SQLDatatype.DATE),
 			 Attribute("manager") -> ForeignKey(Relation("Employee"), Attribute("id")), 
 			 Attribute("address") -> ForeignKey(Relation("Address"),  Attribute("id"))))
       ))
@@ -20,7 +20,7 @@ class RDB2RDFTest extends FunSuite {
 	RelationDesc(Option(Attribute("id")), 
 		     Map(Attribute("id") -> Value(SQLDatatype.INTEGER),
 			 Attribute("lastName") -> Value(SQLDatatype.STRING),
-			 Attribute("birthday") -> Value(SQLDatatype.INTEGER), // !!!
+			 Attribute("birthday") -> Value(SQLDatatype.DATE),
 			 Attribute("manager") -> Value(SQLDatatype.INTEGER),
 			 Attribute("address") -> Value(SQLDatatype.INTEGER))),
 	Relation("Manage") -> 

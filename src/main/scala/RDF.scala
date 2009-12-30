@@ -22,4 +22,6 @@ case class Datatype(uri:URI)
 object RDFLiteral {
   val StringDatatype = Datatype(new URI("http://www.w3.org/2001/XMLSchema#string"))
   val IntegerDatatype = Datatype(new URI("http://www.w3.org/2001/XMLSchema#integer"))
+  val DateDatatype = Datatype(new URI("http://www.w3.org/2001/XMLSchema#date"))
+  // val DateTimeDatatype = Datatype(new URI("http://www.w3.org/2001/XMLSchema#dateTime"))
 }
