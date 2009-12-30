@@ -320,11 +320,12 @@ constrainMe }
 		R2RState(myState.joins, myState.varmap, myState.exprs + PrimaryExpressionEq(varToAttribute(myState.varmap, v), RValueAttr(unionAliasAttr)))
 	    } else {
 	      /* This variable is new to the outer context. */
+	      val unionAttr = RelAliasAttribute(unionAlias, Attribute(Name("A_" + v.s)))
 	      val mapper:SQL2RDFValueMapper = disjointState.varmap(v) match {
-		case RDFNoder(rel, constrainMe)  => RDFNoder(rel, RelAliasAttribute(unionAlias, constrainMe.attribute))
-		case StringMapper(constrainMe)   => StringMapper(RelAliasAttribute(unionAlias, Attribute(Name("A_" + v.s))))
-		case IntMapper(constrainMe)      => IntMapper(RelAliasAttribute(unionAlias, constrainMe.attribute))
-		case RDFBNoder(rel, constrainMe) => RDFBNoder(rel, RelAliasAttribute(unionAlias, constrainMe.attribute))
+		case RDFNoder(rel, constrainMe)  => RDFNoder(rel, unionAttr)
+		case StringMapper(constrainMe)   => StringMapper(unionAttr)
+		case IntMapper(constrainMe)      => IntMapper(unionAttr)
+		case RDFBNoder(rel, constrainMe) => RDFBNoder(rel, unionAttr)
 	      }
 	      R2RState(myState.joins, myState.varmap + (v -> mapper), myState.exprs)
 	    }
