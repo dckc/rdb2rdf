@@ -140,7 +140,6 @@ constrainMe }
 
   def bindOnPredicate(db:DatabaseDesc, stateP:R2RState, triple:TriplePattern, pk:PrimaryKey, enforeForeignKeys:Boolean):R2RState = {
     val TriplePattern(s, p, o) = triple
-    var state = stateP
     p match {
       case PVar(v) => error("variable predicates require tedious enumeration; too tedious for me.")
       case PUri(stem, spRel, spAttr) => {
@@ -152,15 +151,15 @@ constrainMe }
 	/* Attributes that come from the subject: */
 	val subjattr = RelAliasAttribute(relalias, pk.attr)
 	val objattr = RelAliasAttribute(relalias, attr)
-	state = s match {
-	  case SUri(u) => uriConstraint(state, subjattr, u, true)
-	  case SVar(v) => varConstraint(state, subjattr, v, db, rel)
+	val state_postSubj = s match {
+	  case SUri(u) => uriConstraint(stateP, subjattr, u, true)
+	  case SVar(v) => varConstraint(stateP, subjattr, v, db, rel)
 	}
-	state = R2RState(state.joins + AliasedResource(rel,relalias), state.varmap, state.exprs)
+	val state_subjJoin = R2RState(state_postSubj.joins + AliasedResource(rel,relalias), state_postSubj.varmap, state_postSubj.exprs)
 
-	val (targetattr, targetrel, dt) = db.relationdescs(rel).attributes(attr) match {
+	val (targetattr, targetrel, dt, state_fkeys) = db.relationdescs(rel).attributes(attr) match {
 	  case ForeignKey(fkrel, fkattr) => {
-	    var fkdt = db.relationdescs(fkrel).attributes(fkattr) match {
+	    val fkdt = db.relationdescs(fkrel).attributes(fkattr) match {
 	      case ForeignKey(dfkrel, dfkattr) => error("foreign key " + rel.n + "." + attr.n + 
 							"->" + fkrel.n + "." + fkattr.n + 
 							"->" + dfkrel.n + "." + dfkattr.n)
@@ -169,24 +168,22 @@ constrainMe }
 	    if (enforeForeignKeys) {
 	      val oRelAlias = relAliasFromO(o)
 	      val fkaliasattr = RelAliasAttribute(oRelAlias, fkattr)
-	      state = R2RState(state.joins + AliasedResource(fkrel,oRelAlias), state.varmap, state.exprs + PrimaryExpressionEq(fkaliasattr,RValueAttr(objattr)))
+	      val state_t = R2RState(state_subjJoin.joins + AliasedResource(fkrel,oRelAlias), state_subjJoin.varmap, state_subjJoin.exprs + PrimaryExpressionEq(fkaliasattr,RValueAttr(objattr)))
 
-	      (fkaliasattr, fkrel, fkdt)
+	      (fkaliasattr, fkrel, fkdt, state_t)
 	    } else {
-	      (objattr, rel, fkdt)
+	      (objattr, rel, fkdt, state_subjJoin)
 	    }
 	  }
-	  case Value(dt) => (objattr, rel, dt)
+	  case Value(dt) => (objattr, rel, dt, state_subjJoin)
 	}
-	state = o match {
-	  case OLit(l) => literalConstraint(state, targetattr, l, dt)
-	  case OUri(u) => uriConstraint    (state, targetattr, u, enforeForeignKeys)
-	  case OVar(v) => varConstraint    (state, targetattr, v, db, targetrel)
+	o match {
+	  case OLit(l) => literalConstraint(state_fkeys, targetattr, l, dt)
+	  case OUri(u) => uriConstraint    (state_fkeys, targetattr, u, enforeForeignKeys)
+	  case OVar(v) => varConstraint    (state_fkeys, targetattr, v, db, targetrel)
 	}
       }
-
     }
-    state
   }
 
   def findVars(triple:TriplePattern):Set[Var] = {
@@ -263,13 +260,9 @@ constrainMe }
 	R2RState(state2.joins, state2.varmap, state2.exprs ++ filterExprs)
       }
       case TriplesBlock(triplepatterns) => {
-	var state2 = state
-
 	/* Examine each triple, updating the compilation state. */
-	triplepatterns.foreach(s => state2 = bindOnPredicate(db, state2, s, pk, enforeForeignKeys))
-
+	val state2 = triplepatterns.foldLeft(state)((incState,s) => bindOnPredicate(db, incState, s, pk, enforeForeignKeys))
 	val nullExprs = findVars(gp) map (vvar => PrimaryExpressionNotNull(varToAttribute(state2.varmap, vvar)))
-
 	R2RState(state2.joins, state2.varmap, state2.exprs ++ nullExprs)
       }
       case TableConjunction(list) => {
@@ -331,13 +324,13 @@ constrainMe }
     val SparqlSelect(attrs, triples) = sparql
 
     /* Create an object to hold our compilation state. */
-    var r2rState = R2RState(
+    val initState = R2RState(
       Set[AliasedResource](), 
       Map[Var, SQL2RDFValueMapper](), 
       Set[PrimaryExpression]()
     )
 
-    r2rState = mapGraphPattern(db, r2rState, sparql.gp, pk, enforeForeignKeys)
+    val r2rState = mapGraphPattern(db, initState, sparql.gp, pk, enforeForeignKeys)
 
     /* Select the attributes corresponding to the variables
      * in the SPARQL SELECT.  */
