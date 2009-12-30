@@ -33,8 +33,9 @@ class RDB2RDFTest extends FunSuite {
   test("?s <p> <x>") {
     val sparqlParser = Sparql()
     val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
+PREFIX empP : <http://hr.example/DB/Employee#>
 SELECT ?emp {
-?emp  <http://hr.example/DB/Employee#manager>    <http://hr.example/DB/Employee/id.18#record>
+?emp  empP:manager    <http://hr.example/DB/Employee/id.18#record>
 }
 """).get
     val sqlParser = Sql()
@@ -51,8 +52,9 @@ SELECT R_emp.id AS A_emp
   test("<s> <p> ?x") {
     val sparqlParser = Sparql()
     val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
+PREFIX empP : <http://hr.example/DB/Employee#>
 SELECT ?manager {
-<http://hr.example/DB/Employee/id.18#record>  <http://hr.example/DB/Employee#manager>    ?manager
+<http://hr.example/DB/Employee/id.18#record>  empP:manager    ?manager
 }
 """).get
     val sqlParser = Sql()
@@ -71,8 +73,10 @@ SELECT R_manager.id AS A_manager
      * instead does what user meant. */
     val sparqlParser = Sparql()
     val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
+PREFIX empP : <http://hr.example/DB/Employee#>
+PREFIX xsd : <http://www.w3.org/2001/XMLSchema#>
 SELECT ?emp {
-?emp  <http://hr.example/DB/Employee#manager>    "18"^^<http://www.w3.org/2001/XMLSchema#integer>
+?emp  empP:manager    "18"^^xsd:integer
 }
 """).get
     val sqlParser = Sql()
@@ -89,9 +93,10 @@ SELECT R_emp.id AS A_emp
   test("?s1 <p> ?x . ?s2 <p> ?x") {
     val sparqlParser = Sparql()
     val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
+PREFIX empP : <http://hr.example/DB/Employee#>
 SELECT ?emp1 ?emp2 ?sharedName {
-   ?emp1  <http://hr.example/DB/Employee#lastName>    ?sharedName .
-   ?emp2  <http://hr.example/DB/Employee#lastName>    ?sharedName
+   ?emp1  empP:lastName    ?sharedName .
+   ?emp2  empP:lastName    ?sharedName
 }
 """).get
     val sqlParser = Sql()
@@ -108,10 +113,11 @@ SELECT R_emp1.id AS A_emp1, R_emp2.id AS A_emp2, R_emp1.lastName AS A_sharedName
   test("transform SQLbgp") {
     val sparqlParser = Sparql()
     val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
+PREFIX empP : <http://hr.example/DB/Employee#>
 SELECT ?empName ?manageName {
-?emp      <http://hr.example/DB/Employee#lastName>   ?empName .
-?emp      <http://hr.example/DB/Employee#manager>    ?manager .
-?manager  <http://hr.example/DB/Employee#lastName>   ?manageName 
+?emp      empP:lastName   ?empName .
+?emp      empP:manager    ?manager .
+?manager  empP:lastName   ?manageName 
 }
 """).get
     val sqlParser = Sql()
@@ -129,9 +135,10 @@ SELECT R_emp.lastName AS A_empName, R_manager.lastName AS A_manageName
   test("transform tup1 no-enforce") {
     val sparqlParser = Sparql()
     val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
+PREFIX empP : <http://hr.example/DB/Employee#>
 SELECT ?empName {
- ?emp      <http://hr.example/DB/Employee#lastName>   ?empName .
- ?emp      <http://hr.example/DB/Employee#manager>    <http://hr.example/DB/Employee/id.18#record>
+ ?emp      empP:lastName   ?empName .
+ ?emp      empP:manager    <http://hr.example/DB/Employee/id.18#record>
  }
 """).get
     val sqlParser = Sql()
@@ -147,9 +154,10 @@ SELECT R_emp.lastName AS A_empName
   test("transform tup1 enforce") {
     val sparqlParser = Sparql()
     val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
+PREFIX empP : <http://hr.example/DB/Employee#>
 SELECT ?empName {
- ?emp      <http://hr.example/DB/Employee#lastName>   ?empName .
- ?emp      <http://hr.example/DB/Employee#manager>    <http://hr.example/DB/Employee/id.18#record>
+ ?emp      empP:lastName   ?empName .
+ ?emp      empP:manager    <http://hr.example/DB/Employee/id.18#record>
  }
 """).get
     val sqlParser = Sql()
@@ -167,10 +175,12 @@ SELECT R_emp.lastName AS A_empName
   test("transform litConst1") {
     val sparqlParser = Sparql()
     val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
+PREFIX empP : <http://hr.example/DB/Employee#>
+PREFIX xsd : <http://www.w3.org/2001/XMLSchema#>
 SELECT ?empName {
- ?emp      <http://hr.example/DB/Employee#lastName>   ?empName .
- ?emp      <http://hr.example/DB/Employee#manager>    ?manager .
- ?manager  <http://hr.example/DB/Employee#lastName>   "Johnson"^^<http://www.w3.org/2001/XMLSchema#string>
+ ?emp      empP:lastName   ?empName .
+ ?emp      empP:manager    ?manager .
+ ?manager  empP:lastName   "Johnson"^^xsd:string
  }
 """).get
     val sqlParser = Sql()
@@ -188,16 +198,18 @@ WHERE R_manager.id=R_emp.manager AND R_manager.lastName="Johnson" AND R_emp.last
   test("transform filter1") {
     val sparqlParser = Sparql()
     val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
+PREFIX empP : <http://hr.example/DB/Employee#>
+PREFIX manP : <http://hr.example/DB/Manage#>
 SELECT ?empName ?grandManagName {
-         ?emp          <http://hr.example/DB/Employee#lastName>   ?empName .
-         ?emp          <http://hr.example/DB/Employee#birthday>   ?empBday .
-         ?lower        <http://hr.example/DB/Manage#manages>   ?emp .
-         ?lower        <http://hr.example/DB/Manage#manager>   ?manager .
-         ?manager      <http://hr.example/DB/Employee#birthday>   ?manBday .
-         ?upper        <http://hr.example/DB/Manage#manages>   ?manager .
-         ?upper        <http://hr.example/DB/Manage#manager>   ?grandManager .
-         ?grandManager <http://hr.example/DB/Employee#birthday>   ?grandManBday .
-         ?grandManager <http://hr.example/DB/Employee#lastName>   ?grandManagName
+         ?emp          empP:lastName   ?empName .
+         ?emp          empP:birthday   ?empBday .
+         ?lower        manP:manages   ?emp .
+         ?lower        manP:manager   ?manager .
+         ?manager      empP:birthday   ?manBday .
+         ?upper        manP:manages   ?manager .
+         ?upper        manP:manager   ?grandManager .
+         ?grandManager empP:birthday   ?grandManBday .
+         ?grandManager empP:lastName   ?grandManagName
          FILTER (?manBday < ?empBday && ?grandManBday < ?manBday)
 }
 """).get
@@ -225,15 +237,17 @@ SELECT R_emp.lastName AS A_empName, R_grandManager.lastName AS A_grandManagName
   test("transform disj1") {
     val sparqlParser = Sparql()
     val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
+PREFIX empP : <http://hr.example/DB/Employee#>
+PREFIX manP : <http://hr.example/DB/Manage#>
 SELECT ?name
-       { ?who <http://hr.example/DB/Employee#lastName> "Smith"^^<http://www.w3.org/2001/XMLSchema#string>
-         { ?above   <http://hr.example/DB/Manage#manages> ?who .
-           ?above   <http://hr.example/DB/Manage#manager> ?manager .
-           ?manager <http://hr.example/DB/Employee#lastName>  ?name }
+       { ?who empP:lastName "Smith"^^xsd:string
+         { ?above   manP:manages ?who .
+           ?above   manP:manager ?manager .
+           ?manager empP:lastName  ?name }
          UNION
-         { ?below   <http://hr.example/DB/Manage#manager> ?who .
-           ?below   <http://hr.example/DB/Manage#manages> ?managed .
-           ?managed <http://hr.example/DB/Employee#lastName>  ?name } }
+         { ?below   manP:manager ?who .
+           ?below   manP:manages ?managed .
+           ?managed empP:lastName  ?name } }
 """).get
     val sqlParser = Sql()
     val sqlSelect = sqlParser.parseAll(sqlParser.select, """

@@ -92,8 +92,9 @@ FILTER(?manBday < ?empBday && ?grandManBday < ?manBday)
   test("SELECT") {
     val a = Sparql()
     val e = """
+PREFIX empP : <http://hr.example/DB/Employee#>
 SELECT ?empName ?manageName {
-?emp      <http://hr.example/DB/Employee#lastName>   ?empName
+?emp      empP:lastName   ?empName
 }
 """
     val tps =
@@ -166,16 +167,18 @@ SELECT ?empName ?manageName {
   test("parse filter1") {
     val a = Sparql()
     val e = """
+PREFIX empP : <http://hr.example/DB/Employee#>
+PREFIX manP : <http://hr.example/DB/Manage#>
 SELECT ?empName ?grandManagName {
-         ?emp          <http://hr.example/DB/Employee#lastName>   ?empName .
-         ?emp          <http://hr.example/DB/Employee#birthday>   ?empBday .
-         ?lower        <http://hr.example/DB/Manage#manages>   ?emp .
-         ?lower        <http://hr.example/DB/Manage#manager>   ?manager .
-         ?manager      <http://hr.example/DB/Employee#birthday>   ?manBday .
-         ?upper        <http://hr.example/DB/Manage#manages>   ?manager .
-         ?upper        <http://hr.example/DB/Manage#manager>   ?grandManager .
-         ?grandManager <http://hr.example/DB/Employee#birthday>   ?grandManBday .
-         ?grandManager <http://hr.example/DB/Employee#lastName>   ?grandManagName
+         ?emp          empP:lastName   ?empName .
+         ?emp          empP:birthday   ?empBday .
+         ?lower        manP:manages   ?emp .
+         ?lower        manP:manager   ?manager .
+         ?manager      empP:birthday   ?manBday .
+         ?upper        manP:manages   ?manager .
+         ?upper        manP:manager   ?grandManager .
+         ?grandManager empP:birthday   ?grandManBday .
+         ?grandManager empP:lastName   ?grandManagName
          FILTER (?manBday < ?empBday && ?grandManBday < ?manBday)
 }
 """

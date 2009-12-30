@@ -7,6 +7,7 @@ object MyParsers extends RegexParsers {
 
   val uri = """[a-zA-Z0-9:/#\.]+""".r
   val name = """[a-zA-Z_][a-zA-Z0-9_]*""".r
+  var prefixes:Map[String, String] = Map()
 }
 
 import MyParsers._
@@ -63,7 +64,10 @@ case class TermLit(lit:SparqlLiteral) extends Term
 case class Sparql() extends JavaTokenParsers {
 
   def select:Parser[SparqlSelect] =
-    "SELECT" ~ attributelist ~ groupgraphpattern ^^ { case "SELECT"~a~gp => SparqlSelect(a, gp) }
+    rep(prefixdecls) ~ "SELECT" ~ attributelist ~ groupgraphpattern ^^ { case x~"SELECT"~a~gp => SparqlSelect(a, gp) }
+
+  def prefixdecls:Parser[Unit] =
+    "PREFIX" ~ name ~ ":" ~ qnameORuri ^^ { case "PREFIX"~pre~":"~u => prefixes += (pre -> u) }
 
   def filter:Parser[SparqlExpression] =
     "FILTER" ~ "(" ~ expression ~ ")" ^^ { case "FILTER"~"("~expression~")" => expression }
@@ -80,7 +84,7 @@ case class Sparql() extends JavaTokenParsers {
   )
 
   def value:Parser[SparqlTermExpression] = (
-      "<"~uri~">" ^^ { case "<"~x~">" => SparqlTermExpression(TermUri(Sparql.parseObjectURI(x))) }
+      qnameORuri ^^ { case x => SparqlTermExpression(TermUri(Sparql.parseObjectURI(x))) }
     | varr ^^ { x => SparqlTermExpression(TermVar(x)) }
     | literal ^^ { x => SparqlTermExpression(TermLit(x)) }
   )
@@ -128,25 +132,33 @@ case class Sparql() extends JavaTokenParsers {
     subject ~ predicate ~ objectt ^^ { case s~p~o => TriplePattern(s, p, o) }
 
   def subject:Parser[S] = (
-      "<"~uri~">" ^^ { case "<"~x~">" => SUri(Sparql.parseObjectURI(x)) }
+      qnameORuri ^^ { case x => SUri(Sparql.parseObjectURI(x)) }
     | varr ^^ { x => SVar(x) }
   )
 
   def predicate:Parser[P] =
-    "<"~uri~">" ^^ { case "<"~x~">" => Sparql.parsePredicateURI(x) }
+    qnameORuri ^^ { case x => Sparql.parsePredicateURI(x) }
 
   def objectt:Parser[O] = (
-      "<"~uri~">" ^^ { case "<"~x~">" => OUri(Sparql.parseObjectURI(x)) }
+      qnameORuri ^^ { case x => OUri(Sparql.parseObjectURI(x)) }
     | varr ^^ { x => OVar(x) }
     | literal ^^ { x => OLit(x) }
   )
 
-  def literal:Parser[SparqlLiteral] = (
-      stringLiteral~"^^<http://www.w3.org/2001/XMLSchema#string>" ^^
-      { case lit ~ _ => SparqlLiteral(RDFLiteral(lit.substring(1,lit.size - 1), RDFLiteral.StringDatatype)) }
-    | stringLiteral~"^^<http://www.w3.org/2001/XMLSchema#integer>" ^^
-      { case lit ~ _ => SparqlLiteral(RDFLiteral(lit.substring(1,lit.size - 1), RDFLiteral.IntegerDatatype)) }
-)
+  def qnameORuri:Parser[String] = (
+      "<"~uri~">" ^^ { case "<"~x~">" => x }
+    | name~":"~name ^^ { case prefix~":"~localName => prefixes(prefix) + localName }
+  )
+
+  def literal:Parser[SparqlLiteral] =
+      stringLiteral~"^^"~qnameORuri ^^
+      {
+	case lit~"^^"~dt => SparqlLiteral(RDFLiteral(lit.substring(1,lit.size - 1), dt match {
+	  case "http://www.w3.org/2001/XMLSchema#string" => RDFLiteral.StringDatatype
+	  case "http://www.w3.org/2001/XMLSchema#integer" => RDFLiteral.IntegerDatatype
+	  case x => error("only programed to deal with string and integer, not " + x)
+	}))
+      }
 
   def varr:Parser[Var] = "?"~ident ^^ { case "?"~x => Var(x) }
 
