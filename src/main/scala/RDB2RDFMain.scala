@@ -251,18 +251,6 @@ constrainMe }
     }
   }
 
-  def nullGuard(varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):PrimaryExpression = {
-    val mapper:SQL2RDFValueMapper = varmap(vvar)
-    val aattr = mapper match {
-      case IntMapper(relalias) => relalias
-      case StringMapper(relalias) => relalias
-      case DateMapper(relalias) => relalias
-      case RDFNoder(relation, relalias) => relalias
-      case RDFBNoder(relation, relalias) => relalias
-    }
-    PrimaryExpressionNotNull(aattr)
-  }
-
   def mapGraphPattern(db:DatabaseDesc, state:R2RState, gp:GraphPattern, pk:PrimaryKey, enforeForeignKeys:Boolean):R2RState = {
     gp match {
       case TableFilter(gp2:GraphPattern, expr:SparqlExpression) => {
@@ -280,10 +268,7 @@ constrainMe }
 	/* Examine each triple, updating the compilation state. */
 	triplepatterns.foreach(s => state2 = bindOnPredicate(db, state2, s, pk, enforeForeignKeys))
 
-	// val allVars:Set[Var] = triples.triplepatterns.foldLeft(Set[Var]())((x, y) => x ++ findVars(y))
-	val allVars:Set[Var] = findVars(gp)
-	val nullExprs = allVars map (nullGuard(state2.varmap, _))
-	//val exprWithNull = allVars.foldLeft(exprs)((exprs,s) => nullGuard(exprs, r2rState.varmap, s))
+	val nullExprs = findVars(gp) map (vvar => PrimaryExpressionNotNull(varToAttribute(state2.varmap, vvar)))
 
 	R2RState(state2.joins, state2.varmap, state2.exprs ++ nullExprs)
       }
