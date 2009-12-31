@@ -161,4 +161,23 @@ SELECT R_union1.name AS A_name
     assert(expected === (a.parseAll(a.select, e).get))
   }
 
+  test("parse NULL as A_foo") {
+    // AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))
+    val a = Sql()
+    val e = """
+SELECT R_above.manages AS A_who, NULL AS A_bday
+                FROM Manage AS R_above
+          WHERE R_above.id IS NOT NULL
+"""
+    val expected = Select(AttributeList(Set(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_above")),
+									      Attribute(Name("manages"))),
+							    AttrAlias(Name("A_who"))),
+					     NamedAttribute(ConstNULL(),
+							    AttrAlias(Name("A_bday"))))),
+			  TableList(Set(AliasedResource(Relation(Name("Manage")),RelAlias(Name("R_above"))))),
+			  Expression(Set(
+			    PrimaryExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_above")),Attribute(Name("id")))))))
+    assert(expected === (a.parseAll(a.select, e).get))
+  }
+
 }

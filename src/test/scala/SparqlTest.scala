@@ -283,15 +283,13 @@ SELECT ?x { OPTIONAL { ?x <http://hr.example/DB/Employee#manager> ?y} }
     val tps =
       SparqlSelect(
 	SparqlAttributeList(List(Var("x"))),
-	TableConjunction(List(
-	  EmptyGraphPattern(),
-	  OptionalGraphPattern(
-	    TriplesBlock(
-	      List(
-		TriplePattern(
-		  SVar(Var("x")),
-		  PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("manager")),
-		  OVar(Var("y")))))))))
+	OptionalGraphPattern(
+	  TriplesBlock(
+	    List(
+	      TriplePattern(
+		SVar(Var("x")),
+		PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("manager")),
+		OVar(Var("y")))))))
     assert(tps === a.parseAll(a.select, e).get)
   }
 

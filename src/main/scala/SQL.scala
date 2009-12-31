@@ -1,6 +1,16 @@
 package w3c.sw
 
 import scala.util.parsing.combinator._
+
+object SQLParsers extends RegexParsers {
+
+  val int = """[0-9]+""".r
+  val chars = "\"[^\"]*\"".r
+}
+
+import SQLParsers._
+
+import scala.util.parsing.combinator._
 import java.net.URI
 
 case class Union(disjoints:Set[Select]) {
@@ -13,13 +23,25 @@ case class AttributeList(attributes:Set[NamedAttribute]) {
   // foo, bar
   override def toString = "SELECT "+(attributes mkString (",\n       "))
 }
-case class NamedAttribute(fqattribute:RelAliasAttribute, attralias:AttrAlias) {
-  override def toString = fqattribute + " AS " + attralias
+case class NamedAttribute(value:RelAliasAttributeORConst, attralias:AttrAlias) {
+  override def toString = value + " AS " + attralias
 }
 //case class RelAttribute(relation:Relation, attribute:Attribute) c.f. ForeignKey
-case class RelAliasAttribute(relalias:RelAlias, attribute:Attribute) {
+sealed abstract class RelAliasAttributeORConst
+case class RelAliasAttribute(relalias:RelAlias, attribute:Attribute) extends RelAliasAttributeORConst {
   override def toString = relalias + "." + attribute
 }
+sealed abstract class Const  extends RelAliasAttributeORConst
+case class ConstNULL() extends Const {
+  override def toString = "NULL"
+}
+case class ConstInt(i:String) extends Const {
+  override def toString = "" + i
+}
+case class ConstChars(s:String) extends Const {
+  override def toString = "\"" + s + "\""
+}
+
 case class Attribute(n:Name) {
   override def toString = n.s /* "'" + n.s + "'" */
 }
@@ -108,13 +130,24 @@ case class Sql() extends JavaTokenParsers {
     repsep(namedattribute, ",") ^^ { l => AttributeList(l.toSet) }
 
   def namedattribute:Parser[NamedAttribute] =
-    fqattribute ~ "AS" ~ attralias ^^
-    { case fqattribute ~ "AS" ~ attralias =>
-      NamedAttribute(fqattribute, attralias) }
+    fqattributeORconst ~ "AS" ~ attralias ^^
+    { case fqattributeORconst ~ "AS" ~ attralias =>
+      NamedAttribute(fqattributeORconst, attralias) }
+
+  def fqattributeORconst:Parser[RelAliasAttributeORConst] = (
+      fqattribute ^^ { case fqattribute => fqattribute }
+    | const ^^ { case const => const }
+  )
 
   def fqattribute:Parser[RelAliasAttribute] =
     relalias ~ "." ~ attribute ^^
     { case relalias ~ "." ~ attribute => RelAliasAttribute(relalias, attribute) }
+
+  def const:Parser[Const] = (
+      "NULL" ^^ { case "NULL" => ConstNULL() }
+    | int ^^ { case i => ConstInt(i) }
+    | chars ^^ { case ch => ConstChars(ch) }
+  )
 
   def attribute:Parser[Attribute] =
     """[a-zA-Z_]\w*""".r ^^ { x => Attribute(Name(x)) }

@@ -17,7 +17,6 @@ case class SparqlAttributeList(attributelist:List[Var])
 
 sealed abstract class GraphPattern
 case class TriplesBlock(triplepatterns:List[TriplePattern]) extends GraphPattern
-case class EmptyGraphPattern() extends GraphPattern
 case class TableConjunction(gps:List[GraphPattern]) extends GraphPattern
 case class TableDisjunction(gps:List[GraphPattern]) extends GraphPattern
 case class TableFilter(gp:GraphPattern, expr:SparqlExpression) extends GraphPattern
@@ -96,24 +95,35 @@ case class Sparql() extends JavaTokenParsers {
     "{" ~ opt(triplesblock) ~ rep(graphpatternnottriplesORfilter ~ opt(triplesblock)) ~ "}" ^^
     {
       case "{"~tbOPT~gpntORf_tbOPT~"}" => {
-	var init = tbOPT match {
-	  case Some(x) => x
-	  case _ => EmptyGraphPattern()
-	}
+
+// case class TriplesBlock(triplepatterns:List[TriplePattern]) extends GraphPattern
+// case class TableConjunction(gps:List[GraphPattern]) extends GraphPattern
+// case class TableDisjunction(gps:List[GraphPattern]) extends GraphPattern
+// case class TableFilter(gp:GraphPattern, expr:SparqlExpression) extends GraphPattern
+// case class OptionalGraphPattern(gp:GraphPattern) extends GraphPattern
+// case class GraphGraphPattern(gp:GraphPattern) extends GraphPattern
+
 	// println("groupgraphpattern: " + tbOPT + " " + gpntORf_tbOPT)
-	gpntORf_tbOPT.foldLeft(init)((gp, lentry) => lentry match {
-	  case ~(TableFilter(null, expr), None) => TableFilter(gp, expr)
-	  case ~(TriplesBlock(triples), None) => gp match {
-	    case EmptyGraphPattern() => TriplesBlock(triples)
-	    case TriplesBlock(triples2) => TableConjunction(List(gp, TriplesBlock(triples2)))
-	  }
-	  case ~(TableDisjunction(list), None) => gp match {
-	    case EmptyGraphPattern() => TableDisjunction(list)
-	    case x => TableConjunction(List(gp, TableDisjunction(list)))
-	  }
-	  case ~(OptionalGraphPattern(gp2), None) => TableConjunction(List(gp, OptionalGraphPattern(gp2)))
+	val init:Option[GraphPattern] = tbOPT
+	gpntORf_tbOPT.foldLeft(init)((gp, lentry) => {//println("match: " + (gp, lentry))
+(gp, lentry) match {
+	  case (Some(TriplesBlock(l)), ~(TableFilter(null, expr), None                 )) => Some(TableFilter(TriplesBlock(l), expr))
+	  case (None,                  ~(TableFilter(null, expr), Some(TriplesBlock(r)))) => Some(TableFilter(TriplesBlock(r), expr))
+	  case (Some(TriplesBlock(l)), ~(TableFilter(null, expr), Some(TriplesBlock(r)))) => Some(TableFilter(TriplesBlock(l ++ r), expr))
+	  case (Some(TableFilter(TriplesBlock(l), SparqlExpression(lexp))), ~(TableFilter(null, SparqlExpression(expr)), Some(TriplesBlock(r)))) => Some(TableFilter(TriplesBlock(l ++ r), SparqlExpression(lexp ++ expr)))
+
+	  // case (None,     ~(TableConjunction(gps), None    )) => TableConjunction(gps)
+	  // case (Some(gp), ~(TableConjunction(gps), None    )) => TableConjunction(List(List(gp) ++ gps))
+	  // case (None,     ~(TableConjunction(gps), Some(tb))) => TableConjunction(List(gps ++ List(tb)))
+	  // case (Some(gp), ~(TableConjunction(gps), Some(tb))) => TableConjunction(List(List(gp) ++ gps ++ List(tb)))
+
+	  case (None,     ~(x, None    )) => Some(x                                )
+	  case (Some(gp), ~(x, None    )) => Some(TableConjunction(List(gp, x    )))
+	  case (None,     ~(x, Some(tb))) => Some(TableConjunction(List(    x, tb)))
+	  case (Some(gp), ~(x, Some(tb))) => Some(TableConjunction(List(gp, x, tb)))
+
 	  case x => error("found " + x)
-	})
+	}}).get
       }
     }
   )
