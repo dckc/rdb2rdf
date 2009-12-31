@@ -180,13 +180,6 @@ case class Sql() extends JavaTokenParsers {
     rep1sep (relationalexpression, "AND") ^^ 
     { xs => if (xs.size > 1) ExprConjunction(xs.toSet) else xs(0) }
 
-  def expression999:Parser[Expression] = (
-      expression ~ "AND" ~ rep1sep(expression, "AND") ^^ { case x~"AND"~m => ExprConjunction(Set(x) ++ m.toSet) }
-    | expression ~ "OR"  ~ rep1sep(expression, "OR" ) ^^ { case x~"OR" ~m => ExprDisjunction(Set(x) ++ m.toSet) }
-    | "(" ~ expression ~ ")"                          ^^ { case "("~x~")" => x }
-    | relationalexpression                               ^^ { px => px }
-  )
-
   def relationalexpression:Parser[Expression] = (
       fqattribute ~ "=" ~ rvalue ^^
       { case fqattribute ~ "=" ~ rvalue => RelationalExpressionEq(fqattribute, rvalue) }
