@@ -16,8 +16,11 @@ import java.net.URI
 case class Union(disjoints:Set[Select]) {
   override def toString = (disjoints mkString ("\nUNION\n"))
 }
-case class Select(attributelist:AttributeList, tablelist:TableList, expression:Expression) {
-  override def toString = attributelist+"\n"+tablelist+"\n"+expression
+case class Select(attributelist:AttributeList, tablelist:TableList, expression:Option[Expression]) {
+  override def toString = expression match {
+    case Some(expr) => attributelist+"\n"+tablelist+"\n WHERE "+expr
+    case None => attributelist+"\n"+tablelist
+  }
 }
 case class AttributeList(attributes:Set[NamedAttribute]) {
   // foo, bar
@@ -53,7 +56,7 @@ case class Relation(n:Name) extends RelationORSubselect {
   override def toString = n.s /* "'" + n.s + "'" */
 }
 case class Subselect(union:Union) extends RelationORSubselect {
-  override def toString = "(\n" + union + "\n)"
+  override def toString = "\n" + union + "\n)"
 }
 case class RelAlias(n:Name) {
   override def toString = n.s /* "'" + n.s + "'" */
@@ -64,17 +67,21 @@ case class TableList(joins:Set[AliasedResource]) {
 case class AliasedResource(rel:RelationORSubselect, as:RelAlias) {
   override def toString = rel + " AS " + as
 }
-case class Expression(conjuncts:Set[PrimaryExpression]) {
-  override def toString = " WHERE " + (conjuncts mkString ("\n       AND "))
+sealed abstract class Expression
+case class ExprConjunction(exprs:Set[Expression]) extends Expression {
+  override def toString = (exprs mkString ("\n       AND "))
 }
-sealed abstract class PrimaryExpression
-case class PrimaryExpressionEq(l:RelAliasAttribute, r:RValue) extends PrimaryExpression {
+case class ExprDisjunction(exprs:Set[Expression]) extends Expression {
+  override def toString = "(" + (exprs mkString (")\n       OR (")) + ")"
+}
+sealed abstract class RelationalExpression extends Expression
+case class RelationalExpressionEq(l:RelAliasAttribute, r:RValue) extends RelationalExpression {
   override def toString = l + "=" + r
 }
-case class PrimaryExpressionLt(l:RelAliasAttribute, r:RValue) extends PrimaryExpression {
+case class RelationalExpressionLt(l:RelAliasAttribute, r:RValue) extends RelationalExpression {
   override def toString = l + "<" + r
 }
-case class PrimaryExpressionNotNull(l:RelAliasAttribute) extends PrimaryExpression {
+case class RelationalExpressionNotNull(l:RelAliasAttribute) extends RelationalExpression {
   override def toString = l + " IS NOT NULL"
 }
 sealed abstract class RValue
@@ -113,15 +120,7 @@ case class Sql() extends JavaTokenParsers {
 
   def select:Parser[Select] =
     "SELECT" ~ attributelist ~ "FROM" ~ tablelist ~ opt(where) ^^
-    {
-      case "SELECT" ~ attributes ~ "FROM" ~ tables ~ whereexpr => {
-	val expression:Expression = whereexpr match {
-	  case None => Expression(Set())
-	  case Some(f) => f
-	}
-	Select(attributes, tables, expression)
-      }
-    }
+    { case "SELECT" ~ attributes ~ "FROM" ~ tables ~ whereexpr => Select(attributes, tables, whereexpr) }
 
   def where:Parser[Expression] =
     "WHERE" ~ expression ^^ { case "WHERE" ~ expression => expression }
@@ -170,17 +169,33 @@ case class Sql() extends JavaTokenParsers {
     relationORsubselect ~ "AS" ~ relalias ^^
     { case rel1 ~ "AS" ~ rel2 => AliasedResource(rel1, rel2) }
 
-  def expression:Parser[Expression] = 
-    repsep(primaryexpression, "AND") ^^ 
-    { m => Expression(m.toSet) }
+  def expression:Parser[Expression] =
+    ORexpression ^^ { x => x }
 
-  def primaryexpression:Parser[PrimaryExpression] = (
+  def ORexpression:Parser[Expression] =
+    rep1sep (ANDexpression, "OR") ^^ 
+    { xs => if (xs.size > 1) ExprDisjunction(xs.toSet) else xs(0) }
+
+  def ANDexpression:Parser[Expression] =
+    rep1sep (relationalexpression, "AND") ^^ 
+    { xs => if (xs.size > 1) ExprConjunction(xs.toSet) else xs(0) }
+
+  def expression999:Parser[Expression] = (
+      expression ~ "AND" ~ rep1sep(expression, "AND") ^^ { case x~"AND"~m => ExprConjunction(Set(x) ++ m.toSet) }
+    | expression ~ "OR"  ~ rep1sep(expression, "OR" ) ^^ { case x~"OR" ~m => ExprDisjunction(Set(x) ++ m.toSet) }
+    | "(" ~ expression ~ ")"                          ^^ { case "("~x~")" => x }
+    | relationalexpression                               ^^ { px => px }
+  )
+
+  def relationalexpression:Parser[Expression] = (
       fqattribute ~ "=" ~ rvalue ^^
-      { case fqattribute ~ "=" ~ rvalue => PrimaryExpressionEq(fqattribute, rvalue) }
+      { case fqattribute ~ "=" ~ rvalue => RelationalExpressionEq(fqattribute, rvalue) }
     | fqattribute ~ "<" ~ rvalue ^^
-      { case fqattribute ~ "<" ~ rvalue => PrimaryExpressionLt(fqattribute, rvalue) }
+      { case fqattribute ~ "<" ~ rvalue => RelationalExpressionLt(fqattribute, rvalue) }
     | fqattribute ~ "IS" ~ "NOT" ~ "NULL" ^^
-      { case fqattribute ~ "IS" ~ "NOT" ~ "NULL" => PrimaryExpressionNotNull(fqattribute) }
+      { case fqattribute ~ "IS" ~ "NOT" ~ "NULL" => RelationalExpressionNotNull(fqattribute) }
+    | "(" ~ expression ~ ")" ^^
+      { case "("~x~")" => x }
   )
 
   def rvalue:Parser[RValue] = (
