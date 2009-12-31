@@ -276,15 +276,16 @@ constrainMe }
 	  Map[Var, SQL2RDFValueMapper](), 
 	  Set[Expression]()
 	)
-	val (state2, disjoints) = list.foldLeft((state, initDisjoints))((incPair,disjoint) => {
-	  val (outerState, outerDisjoints) = incPair
+	val (state2, disjoints, count) = list.foldLeft((state, initDisjoints, 0))((incPair,disjoint) => {
+	  val (outerState, outerDisjoints, no) = incPair
 	  val disjointState = mapGraphPattern(db, emptyState, disjoint, pk, enforeForeignKeys)
 	  val disjointVars = findVars(disjoint)
+	  val disjointNo = NamedAttribute(ConstInt("" + no), AttrAlias(Name("_DISJOINT_")))
 
-	  val attrlist:Set[NamedAttribute] = disjointVars.foldLeft(Set[NamedAttribute]())((attrs, v) => 
+	  val attrlist:Set[NamedAttribute] = disjointVars.foldLeft(Set(disjointNo))((attrs, v) => 
 	    attrs ++ Set(NamedAttribute(varToAttribute(disjointState.varmap, v), AttrAlias(Name("A_" + v.s)))))
 
-	  val sel = Select(
+	  val subselect = Select(
 	    AttributeList(attrlist),
 	    TableList(disjointState.joins),
 	    disjointState.exprs.size match {
@@ -306,16 +307,16 @@ constrainMe }
 	    } else {
 	      /* This variable is new to the outer context. */
 	      val mapper:SQL2RDFValueMapper = disjointState.varmap(v) match {
-		case IntMapper(constrainMe)      => IntMapper(unionAliasAttr)
-		case StringMapper(constrainMe)   => StringMapper(unionAliasAttr)
-		case DateMapper(constrainMe)   => DateMapper(unionAliasAttr)
-		case RDFNoder(rel, constrainMe)  => RDFNoder(rel, unionAliasAttr)
-		case RDFBNoder(rel, constrainMe) => RDFBNoder(rel, unionAliasAttr)
+		case IntMapper(_)      => IntMapper(unionAliasAttr)
+		case StringMapper(_)   => StringMapper(unionAliasAttr)
+		case DateMapper(_)   => DateMapper(unionAliasAttr)
+		case RDFNoder(rel, _)  => RDFNoder(rel, unionAliasAttr)
+		case RDFBNoder(rel, _) => RDFBNoder(rel, unionAliasAttr)
 	      }
 	      R2RState(myState.joins, myState.varmap + (v -> mapper), myState.exprs)
 	    }
 	  })
-	  (outerState2, outerDisjoints ++ Set(sel))
+	  (outerState2, outerDisjoints ++ Set(subselect), no+1)
 	})
 	val union = Subselect(Union(disjoints))
 	R2RState(state.joins + AliasedResource(union,unionAlias), state2.varmap, state2.exprs)

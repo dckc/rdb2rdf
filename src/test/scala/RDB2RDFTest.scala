@@ -254,14 +254,14 @@ SELECT ?name
 SELECT R_union1.A_name AS A_name
   FROM Employee AS R_who
        INNER JOIN (
-         SELECT R_manager.lastName AS A_name, R_above.manages AS A_who
+         SELECT 0 AS _DISJOINT_, R_manager.lastName AS A_name, R_above.manages AS A_who
                 , R_above.id AS A_above, R_above.manager AS A_manager
                 FROM Manage AS R_above
                 INNER JOIN Employee AS R_manager
           WHERE R_above.manager=R_manager.id AND R_manager.lastName IS NOT NULL
                 AND R_above.manager IS NOT NULL AND R_above.id IS NOT NULL AND R_above.manages IS NOT NULL
        UNION
-         SELECT R_managed.lastName AS A_name, R_below.manager AS A_who
+         SELECT 1 AS _DISJOINT_, R_managed.lastName AS A_name, R_below.manager AS A_who
                 , R_below.id AS A_below, R_below.manages AS A_managed
                 FROM Manage AS R_below
                 INNER JOIN Employee AS R_managed
@@ -269,6 +269,45 @@ SELECT R_union1.A_name AS A_name
                 AND R_below.manager IS NOT NULL AND R_below.id IS NOT NULL AND R_below.manages IS NOT NULL
        ) AS R_union1
  WHERE R_who.id=R_union1.A_who AND R_who.lastName="Smith" AND R_who.id IS NOT NULL
+""").get
+    assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false) === sqlSelect)
+  }
+
+  test("transform assymDisj1") {
+    val sparqlParser = Sparql()
+    val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
+PREFIX empP : <http://hr.example/DB/Employee#>
+PREFIX manP : <http://hr.example/DB/Manage#>
+PREFIX xsd : <http://www.w3.org/2001/XMLSchema#>
+SELECT ?name
+       { { ?above   manP:manages ?who .
+           ?above   manP:manager ?manager .
+           ?manager empP:lastName  ?name }
+         UNION
+         { ?below   manP:manager ?who .
+           ?below   manP:manages ?managed .
+           ?managed empP:lastName  ?name .
+           ?managed empP:birthday  ?bday } 
+         ?who empP:lastName "Smith"^^xsd:string .
+         ?who empP:birthday ?bday }
+""").get
+    val sqlParser = Sql()
+    val sqlSelect = sqlParser.parseAll(sqlParser.select, """
+SELECT R_union0.A_name AS A_name
+  FROM ( SELECT 0 AS _DISJOINT_, R_manager.lastName AS A_lastName, R_above.manages AS A_who, NULL AS A_bday
+                FROM Manage AS R_above
+                INNER JOIN Employee AS R_manager
+          WHERE R_above.manager=R_manager.id AND R_manager.lastName IS NOT NULL
+       UNION
+         SELECT 1 AS _DISJOINT_, R_managed.lastName AS A_lastName, R_below.manager AS A_who, R_managed.birthday AS A_bday
+                FROM Manage AS R_below
+                INNER JOIN Employee AS R_managed
+          WHERE R_below.manages=R_managed.id AND R_managed.lastName IS NOT NULL
+       ) AS R_union0
+       INNER JOIN Employee AS R_who
+ WHERE R_who.lastName="Smith" AND
+                      (R_union0._DISJOINT_=1 AND R_union1.A_who=R_who.id) OR
+                      (R_union0._DISJOINT_=2 AND R_union1.A_who=R_who.id AND R_union1.A_bday=R_who.birthday)
 """).get
     assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false) === sqlSelect)
   }
