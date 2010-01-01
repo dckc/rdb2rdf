@@ -15,12 +15,12 @@ case class Enum(relaliasattr:RelAliasAttribute) extends Binding
 object RDB2RDF {
   case class R2RState(joins:Set[AliasedResource], varmap:Map[Var, SQL2RDFValueMapper], exprs:Set[Expression])
 
-  sealed abstract class SQL2RDFValueMapper(relaliasattr:RelAliasAttribute)
-  case class IntMapper(relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
-  case class StringMapper(relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
-  case class DateMapper(relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
-  case class RDFNoder(relation:Relation, relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
-  case class RDFBNoder(relation:Relation, relaliasattr:RelAliasAttribute) extends SQL2RDFValueMapper(relaliasattr)
+  sealed abstract class SQL2RDFValueMapper(relaliasattr:RelAliasAttribute, disjoints:Set[RelationalExpressionNe])
+  case class IntMapper(relaliasattr:RelAliasAttribute, disjoints:Set[RelationalExpressionNe]) extends SQL2RDFValueMapper(relaliasattr, disjoints)
+  case class StringMapper(relaliasattr:RelAliasAttribute, disjoints:Set[RelationalExpressionNe]) extends SQL2RDFValueMapper(relaliasattr, disjoints)
+  case class DateMapper(relaliasattr:RelAliasAttribute, disjoints:Set[RelationalExpressionNe]) extends SQL2RDFValueMapper(relaliasattr, disjoints)
+  case class RDFNoder(relation:Relation, relaliasattr:RelAliasAttribute, disjoints:Set[RelationalExpressionNe]) extends SQL2RDFValueMapper(relaliasattr, disjoints)
+  case class RDFBNoder(relation:Relation, relaliasattr:RelAliasAttribute, disjoints:Set[RelationalExpressionNe]) extends SQL2RDFValueMapper(relaliasattr, disjoints)
 
   def relAliasFromS(s:S):RelAlias = {
     s match {
@@ -54,8 +54,7 @@ object RDB2RDF {
   def uriConstraint(state:R2RState, constrainMe:RelAliasAttribute, u:ObjUri, enforeForeignKeys:Boolean):R2RState = {
     // println("equiv+= " + toString(constrainMe) + "=" + value)
     //R2RState(state.joins, state.varmap, state.exprs + RelationalExpressionEq(constrainMe,RValueTyped(SQLDatatype.INTEGER,Name(u.v.s))))
-    val relvar = if (enforeForeignKeys) RelAliasAttribute(constrainMe.relalias, Attribute(Name(u.attr.s))) else { println("constraining to " + constrainMe)
-constrainMe }
+    val relvar = if (enforeForeignKeys) RelAliasAttribute(constrainMe.relalias, Attribute(Name(u.attr.s))) else constrainMe
     R2RState(state.joins, state.varmap, state.exprs + RelationalExpressionEq(relvar,RValueTyped(SQLDatatype.INTEGER,Name(u.v.s))))
   }
 
@@ -94,30 +93,38 @@ constrainMe }
       /* The variable has already been bound. */
       if (varToAttribute(state.varmap, v) == constrainMe)
 	/* Don't bother stipulating that foo.bar=foo.bar . */
-	state
-      else
+	state // !!! what about disjoints?
+      else {
 	/* Constraint against the initial binding for this variable. */
-	R2RState(state.joins, state.varmap, state.exprs + RelationalExpressionEq(varToAttribute(state.varmap, v), RValueAttr(constrainMe)))
+	val constraint = RelationalExpressionEq(varToAttribute(state.varmap, v), RValueAttr(constrainMe))
+	R2RState(state.joins, state.varmap, 
+		 if (varToAttributeDisjoints(state.varmap, v).size > 0) {
+		   val s:Set[Expression] = varToAttributeDisjoints(state.varmap, v) map ((d) => ExprDisjunction(Set(d, constraint)))
+		   state.exprs ++ s
+		 } else
+		   state.exprs + constraint
+	       )
+      }
     } else {
       /* This is a new variable. */
       val binding = reldesc.primarykey match {
 	case Some(Attribute(constrainMe.attribute.n)) => 
-	  RDFNoder(rel, constrainMe)
+	  RDFNoder(rel, constrainMe, Set())
 	case _ => {
 	  // e.g. Attribute(Name("id")) or None
 	  if (reldesc.attributes.contains(constrainMe.attribute)) {
 	    reldesc.attributes(constrainMe.attribute) match {
 	      case ForeignKey(fkrel, fkattr) =>
-		RDFNoder(rel, constrainMe)
+		RDFNoder(rel, constrainMe, Set())
 	      case Value(SQLDatatype("Int")) =>
-		IntMapper(constrainMe)
+		IntMapper(constrainMe, Set())
 	      case Value(SQLDatatype("String")) =>
-		StringMapper(constrainMe)
+		StringMapper(constrainMe, Set())
 	      case Value(SQLDatatype("Date")) =>
-		DateMapper(constrainMe)
+		DateMapper(constrainMe, Set())
 	    }
 	  } else {
-	    RDFBNoder(rel, constrainMe)
+	    RDFBNoder(rel, constrainMe, Set())
 	  }
 	}
       }
@@ -130,11 +137,11 @@ constrainMe }
   }
   def toString(mapper:SQL2RDFValueMapper) : String = {
     mapper match {
-      case IntMapper(relalias) => "INT: " + toString(relalias)
-      case StringMapper(relalias) => "STRING: " + toString(relalias)
-      case DateMapper(relalias) => "DATE: " + toString(relalias)
-      case RDFNoder(relation, relalias) => "RDFNoder: " + relation.n.s + ", " + toString(relalias)
-      case RDFBNoder(relation, relalias) => "RDFBNoder: " + relation.n.s + ", " + toString(relalias)
+      case IntMapper(relalias, disjoints) => "INT: " + toString(relalias)
+      case StringMapper(relalias, disjoints) => "STRING: " + toString(relalias)
+      case DateMapper(relalias, disjoints) => "DATE: " + toString(relalias)
+      case RDFNoder(relation, relalias, disjoints) => "RDFNoder: " + relation.n.s + ", " + toString(relalias)
+      case RDFBNoder(relation, relalias, disjoints) => "RDFBNoder: " + relation.n.s + ", " + toString(relalias)
     }
   }
 
@@ -214,11 +221,21 @@ constrainMe }
 
   def varToAttribute(varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):RelAliasAttribute = {
     varmap(vvar) match {
-      case IntMapper(relalias) => relalias
-      case StringMapper(relalias) => relalias
-      case DateMapper(relalias) => relalias
-      case RDFNoder(relation, relalias) => relalias
-      case RDFBNoder(relation, relalias) => relalias
+      case IntMapper(relalias, disjoints) => relalias
+      case StringMapper(relalias, disjoints) => relalias
+      case DateMapper(relalias, disjoints) => relalias
+      case RDFNoder(relation, relalias, disjoints) => relalias
+      case RDFBNoder(relation, relalias, disjoints) => relalias
+    }
+  }
+
+  def varToAttributeDisjoints(varmap:Map[Var, SQL2RDFValueMapper], vvar:Var):Set[RelationalExpressionNe] = {
+    varmap(vvar) match {
+      case IntMapper(relalias, disjoints) => disjoints
+      case StringMapper(relalias, disjoints) => disjoints
+      case DateMapper(relalias, disjoints) => disjoints
+      case RDFNoder(relation, relalias, disjoints) => disjoints
+      case RDFBNoder(relation, relalias, disjoints) => disjoints
     }
   }
 
@@ -276,14 +293,19 @@ constrainMe }
 	  Map[Var, SQL2RDFValueMapper](), 
 	  Set[Expression]()
 	)
+	val unionVars = list.foldLeft(Set[Var]())((mySet,disjoint) => mySet ++ findVars(disjoint)).toList
 	val (state2, disjoints, count) = list.foldLeft((state, initDisjoints, 0))((incPair,disjoint) => {
 	  val (outerState, outerDisjoints, no) = incPair
 	  val disjointState = mapGraphPattern(db, emptyState, disjoint, pk, enforeForeignKeys)
 	  val disjointVars = findVars(disjoint)
 	  val disjointNo = NamedAttribute(ConstInt("" + no), AttrAlias(Name("_DISJOINT_")))
+	  val disjointNoAliasAttr = RelAliasAttribute(unionAlias, Attribute(Name("_DISJOINT_")))
+	  val disjointCond = RelationalExpressionNe(disjointNoAliasAttr, RValueTyped(SQLDatatype.INTEGER,Name("" + no)))
 
-	  val attrlist:Set[NamedAttribute] = disjointVars.foldLeft(Set(disjointNo))((attrs, v) => 
-	    attrs ++ Set(NamedAttribute(varToAttribute(disjointState.varmap, v), AttrAlias(Name("A_" + v.s)))))
+	  val attrlist:Set[NamedAttribute] = unionVars.foldLeft(Set(disjointNo))((attrs, v) => {
+	    val attrOrNull = if (disjointState.varmap.contains(v)) varToAttribute(disjointState.varmap, v) else ConstNULL()
+	    attrs ++ Set(NamedAttribute(attrOrNull, AttrAlias(Name("A_" + v.s))))
+	  })
 
 	  val subselect = Select(
 	    AttributeList(attrlist),
@@ -295,23 +317,32 @@ constrainMe }
 	    }
 	  )
 	  val outerState2 = disjointVars.foldLeft(outerState)((myState, v) => {
-	    val unionAliasAttr = RelAliasAttribute(unionAlias, Attribute(Name("A_" + v.s)))
+	    val varAliasAttr = RelAliasAttribute(unionAlias, Attribute(Name("A_" + v.s)))
 	    if (myState.varmap.contains(v)) {
 	      /* The variable has already been bound. */
-	      if (varToAttribute(myState.varmap, v) == unionAliasAttr)
+	      if (varToAttribute(myState.varmap, v) == varAliasAttr) {
 		/* Same var was bound in an earlier disjoint. */
-		myState
-	      else
+		val oldDisjoints = varToAttributeDisjoints(myState.varmap, v)
+		// myState
+		val mapper:SQL2RDFValueMapper = disjointState.varmap(v) match {
+		  case IntMapper(_, _)      => IntMapper(varAliasAttr, oldDisjoints + disjointCond)
+		  case StringMapper(_, _)   => StringMapper(varAliasAttr, oldDisjoints + disjointCond)
+		  case DateMapper(_, _)   => DateMapper(varAliasAttr, oldDisjoints + disjointCond)
+		  case RDFNoder(rel, _, _)  => RDFNoder(rel, varAliasAttr, oldDisjoints + disjointCond)
+		  case RDFBNoder(rel, _, _) => RDFBNoder(rel, varAliasAttr, oldDisjoints + disjointCond)
+		}
+		R2RState(myState.joins, myState.varmap + (v -> mapper), myState.exprs)
+	      } else
 		/* Constraint against the initial binding for this variable. */
-		R2RState(myState.joins, myState.varmap, myState.exprs + RelationalExpressionEq(varToAttribute(myState.varmap, v), RValueAttr(unionAliasAttr)))
+		R2RState(myState.joins, myState.varmap, myState.exprs + RelationalExpressionEq(varToAttribute(myState.varmap, v), RValueAttr(varAliasAttr)))
 	    } else {
 	      /* This variable is new to the outer context. */
 	      val mapper:SQL2RDFValueMapper = disjointState.varmap(v) match {
-		case IntMapper(_)      => IntMapper(unionAliasAttr)
-		case StringMapper(_)   => StringMapper(unionAliasAttr)
-		case DateMapper(_)   => DateMapper(unionAliasAttr)
-		case RDFNoder(rel, _)  => RDFNoder(rel, unionAliasAttr)
-		case RDFBNoder(rel, _) => RDFBNoder(rel, unionAliasAttr)
+		case IntMapper(_, _)      => IntMapper(varAliasAttr, Set(disjointCond))
+		case StringMapper(_, _)   => StringMapper(varAliasAttr, Set(disjointCond))
+		case DateMapper(_, _)   => DateMapper(varAliasAttr, Set(disjointCond))
+		case RDFNoder(rel, _, _)  => RDFNoder(rel, varAliasAttr, Set(disjointCond))
+		case RDFBNoder(rel, _, _) => RDFBNoder(rel, varAliasAttr, Set(disjointCond))
 	      }
 	      R2RState(myState.joins, myState.varmap + (v -> mapper), myState.exprs)
 	    }

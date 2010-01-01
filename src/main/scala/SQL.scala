@@ -69,14 +69,17 @@ case class AliasedResource(rel:RelationORSubselect, as:RelAlias) {
 }
 sealed abstract class Expression
 case class ExprConjunction(exprs:Set[Expression]) extends Expression {
-  override def toString = (exprs mkString ("\n       AND "))
+  override def toString = "(" + (exprs mkString (")\n       AND (")) + ")"
 }
 case class ExprDisjunction(exprs:Set[Expression]) extends Expression {
-  override def toString = "(" + (exprs mkString (")\n       OR (")) + ")"
+  override def toString = "(" + (exprs mkString (") OR (")) + ")"
 }
 sealed abstract class RelationalExpression extends Expression
 case class RelationalExpressionEq(l:RelAliasAttribute, r:RValue) extends RelationalExpression {
   override def toString = l + "=" + r
+}
+case class RelationalExpressionNe(l:RelAliasAttribute, r:RValue) extends RelationalExpression {
+  override def toString = l + "!=" + r
 }
 case class RelationalExpressionLt(l:RelAliasAttribute, r:RValue) extends RelationalExpression {
   override def toString = l + "<" + r
@@ -183,6 +186,8 @@ case class Sql() extends JavaTokenParsers {
   def relationalexpression:Parser[Expression] = (
       fqattribute ~ "=" ~ rvalue ^^
       { case fqattribute ~ "=" ~ rvalue => RelationalExpressionEq(fqattribute, rvalue) }
+    | fqattribute ~ "!=" ~ rvalue ^^
+      { case fqattribute ~ "!=" ~ rvalue => RelationalExpressionNe(fqattribute, rvalue) }
     | fqattribute ~ "<" ~ rvalue ^^
       { case fqattribute ~ "<" ~ rvalue => RelationalExpressionLt(fqattribute, rvalue) }
     | fqattribute ~ "IS" ~ "NOT" ~ "NULL" ^^
