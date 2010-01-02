@@ -61,9 +61,14 @@ case class Subselect(union:Union) extends RelationORSubselect {
 case class RelAlias(n:Name) {
   override def toString = n.s /* "'" + n.s + "'" */
 }
-case class TableList(joins:Set[AliasedResource]) {
+case class TableList(joins:Set[Join]) {
   override def toString = "  FROM " + (joins mkString ("\n       INNER JOIN "))
 }
+
+sealed abstract class Join(res:AliasedResource)
+case class InnerJoin(res:AliasedResource) extends Join(res)
+case class LeftOuterJoin(res:AliasedResource, on:Expression) extends Join(res)
+
 case class AliasedResource(rel:RelationORSubselect, as:RelAlias) {
   override def toString = rel + " AS " + as
 }
@@ -166,7 +171,12 @@ case class Sql() extends JavaTokenParsers {
     """[a-zA-Z_]\w*""".r ^^ { x => RelAlias(Name(x)) }
 
   def tablelist:Parser[TableList] =
-    repsep(aliasedjoin, "INNER" ~ "JOIN") ^^ { m => TableList(m.toSet) }
+    aliasedjoin ~ rep(innerORouter) ^^ { case aj~l => TableList(Set(InnerJoin(aj)) ++ l.toSet) }
+
+  def innerORouter:Parser[Join] = (
+      "INNER" ~ "JOIN" ~ aliasedjoin ^^ { case "INNER"~"JOIN"~a => InnerJoin(a) }
+    | "LEFT" ~ "OUTER" ~ "JOIN" ~ aliasedjoin ~ "ON" ~ expression ^^ { case l~o~j~alijoin~on~expr => LeftOuterJoin(alijoin, expr) }
+  )
 
   def aliasedjoin:Parser[AliasedResource] =
     relationORsubselect ~ "AS" ~ relalias ^^

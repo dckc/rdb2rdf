@@ -425,7 +425,6 @@ SELECT R_union1.A_name AS A_name
 
 // SELECT ?empName ?managName ?grandManagName
 //  WHERE {          ?emp            emplP:lastName   ?empName
-
 //        OPTIONAL { ?mang           mangP:manages    ?emp .
 //                   ?mang           mangP:manager    ?manager .
 //                   ?manager        emplP:lastName   ?managName
@@ -436,28 +435,20 @@ SELECT R_union1.A_name AS A_name
 // """).get
 //     val sqlParser = Sql()
 //     val sqlSelect = sqlParser.parseAll(sqlParser.select, """
-// SELECT R_union1.A_name AS A_name
-//   FROM Employee AS R_who
-//        INNER JOIN ( SELECT 0 AS _DISJOINT_, R_above.manager AS A_manager, R_manager.lastName AS A_name, R_above.id AS A_above, 
-//                 NULL AS A_below, NULL AS A_bday, R_above.manages AS A_who, NULL AS A_managed
-//                 FROM Manage AS R_above
+// SELECT R_emp.lastName AS A_empName, R_opt1.A_managName AS A_managName, R_opt1.A_grandManagName AS A_grandManagName
+//        FROM Employee AS R_emp
+//             LEFT OUTER JOIN (
+//     SELECT R_opt1.A_grandManagName AS A_grandManagName, R_manager.lastName AS A_managName, R_mang.manages AS R_emp, R_mang.manager AS A_manager
+//            FROM Manage AS R_mang
 //                 INNER JOIN Employee AS R_manager
-//           WHERE R_above.manager IS NOT NULL AND R_above.manager=R_manager.id AND R_above.id IS NOT NULL
-//                 AND R_above.manages IS NOT NULL AND R_manager.lastName IS NOT NULL
-//        UNION
-//          SELECT 1 AS _DISJOINT_, NULL AS A_manager, R_managed.lastName AS A_name, NULL AS A_above, 
-//                 R_below.id AS A_below, R_managed.birthday AS A_bday, R_below.manager AS A_who, R_below.manages AS A_managed
-//                 FROM Manage AS R_below
-//                 INNER JOIN Employee AS R_managed
-//           WHERE R_managed.birthday IS NOT NULL AND R_below.manager IS NOT NULL AND R_below.id IS NOT NULL
-//                 AND R_below.manages=R_managed.id AND R_below.manages IS NOT NULL AND R_managed.lastName IS NOT NULL
-//        ) AS R_union1
-//  WHERE R_who.lastName="Smith" AND
-//        (R_union1._DISJOINT_!=0 OR R_who.id=R_union1.A_who) AND
-//        (R_union1._DISJOINT_!=1 OR R_who.id=R_union1.A_who) AND
-//        (R_union1._DISJOINT_!=1 OR R_union1.A_bday=R_who.birthday) AND
-//        R_who.id IS NOT NULL AND
-//        R_union1.A_bday IS NOT NULL
+//                 LEFT OUTER JOIN (
+//         SELECT R_grandManager.lastName AS A_grandManagName, R_grandMang.manages AS A_manager
+//                FROM Manage AS R_grandMang
+//                     INNER JOIN Employee AS R_grandManager
+//                  ) AS R_opt1 ON R_opt1.manager=R_mang.manager
+//           WHERE R_manager.id=R_mang.manager AND R_grandManager.id=R_grandMang.manager
+//              ) AS R_opt1 ON opt1.emp=R_emp.id
+//  WHERE R_emp.lastName IS NOT NULL
 // """).get
 //     assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false) === sqlSelect)
 //   }

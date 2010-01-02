@@ -13,7 +13,7 @@ case class Int(relaliasattr:RelAliasAttribute) extends Binding
 case class Enum(relaliasattr:RelAliasAttribute) extends Binding
 
 object RDB2RDF {
-  case class R2RState(joins:Set[AliasedResource], varmap:Map[Var, SQL2RDFValueMapper], exprs:Set[Expression])
+  case class R2RState(joins:Set[Join], varmap:Map[Var, SQL2RDFValueMapper], exprs:Set[Expression])
 
   sealed abstract class SQL2RDFValueMapper(relaliasattr:RelAliasAttribute, disjoints:Set[RelationalExpressionNe])
   case class IntMapper(relaliasattr:RelAliasAttribute, disjoints:Set[RelationalExpressionNe]) extends SQL2RDFValueMapper(relaliasattr, disjoints)
@@ -161,7 +161,7 @@ object RDB2RDF {
 	  case SUri(u) => uriConstraint(stateP, subjattr, u, true)
 	  case SVar(v) => varConstraint(stateP, subjattr, v, db, rel)
 	}
-	val state_subjJoin = R2RState(state_postSubj.joins + AliasedResource(rel,relalias), state_postSubj.varmap, state_postSubj.exprs)
+	val state_subjJoin = R2RState(state_postSubj.joins + InnerJoin(AliasedResource(rel,relalias)), state_postSubj.varmap, state_postSubj.exprs)
 
 	val (targetattr, targetrel, dt, state_fkeys) = db.relationdescs(rel).attributes(attr) match {
 	  case ForeignKey(fkrel, fkattr) => {
@@ -174,7 +174,9 @@ object RDB2RDF {
 	    if (enforeForeignKeys) {
 	      val oRelAlias = relAliasFromO(o)
 	      val fkaliasattr = RelAliasAttribute(oRelAlias, fkattr)
-	      val state_t = R2RState(state_subjJoin.joins + AliasedResource(fkrel,oRelAlias), state_subjJoin.varmap, state_subjJoin.exprs + RelationalExpressionEq(fkaliasattr,RValueAttr(objattr)))
+	      val state_t = R2RState(state_subjJoin.joins + InnerJoin(AliasedResource(fkrel,oRelAlias)),
+				     state_subjJoin.varmap,
+				     state_subjJoin.exprs + RelationalExpressionEq(fkaliasattr,RValueAttr(objattr)))
 
 	      (fkaliasattr, fkrel, fkdt, state_t)
 	    } else {
@@ -288,7 +290,7 @@ object RDB2RDF {
 	val unionAlias = RelAlias(Name("R_union" + state.joins.size))
 	val initDisjoints:Set[Select] = Set()
 	val emptyState = R2RState(
-	  Set[AliasedResource](), 
+	  Set[Join](), 
 	  Map[Var, SQL2RDFValueMapper](), 
 	  Set[Expression]()
 	)
@@ -360,7 +362,10 @@ object RDB2RDF {
 	  (outerState2, outerDisjoints ++ Set(subselect), no+1)
 	})
 	val union = Subselect(Union(disjoints))
-	R2RState(state.joins + AliasedResource(union,unionAlias), state2.varmap, state2.exprs)
+	R2RState(state.joins + InnerJoin(AliasedResource(union,unionAlias)), state2.varmap, state2.exprs)
+      }
+      case OptionalGraphPattern(gp) => {
+	state
       }
       case x => error("no code to handle " + x)
     }
@@ -371,7 +376,7 @@ object RDB2RDF {
 
     /* Create an object to hold our compilation state. */
     val initState = R2RState(
-      Set[AliasedResource](), 
+      Set[Join](), 
       Map[Var, SQL2RDFValueMapper](), 
       Set[Expression]()
     )
