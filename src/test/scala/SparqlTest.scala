@@ -109,6 +109,27 @@ SELECT ?empName ?manageName {
     assert(tps === a.parseAll(a.select, e).get)
   }
 
+  test("WHERE") {
+    val a = Sparql()
+    val e = """
+PREFIX empP : <http://hr.example/DB/Employee#>
+SELECT ?empName ?manageName
+ WHERE {
+         ?emp      empP:lastName   ?empName
+       }
+"""
+    val tps =
+      SparqlSelect(
+	SparqlAttributeList(List(Var("empName"), Var("manageName"))),
+	TriplesBlock(
+	  List(
+	    TriplePattern(
+	      SVar(Var("emp")),
+		PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")),
+	      OVar(Var("empName"))))))
+    assert(tps === a.parseAll(a.select, e).get)
+  }
+
   test("SELECT with FILTER") {
     val a = Sparql()
     val e = """

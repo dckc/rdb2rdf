@@ -240,7 +240,7 @@ SELECT R_emp.lastName AS A_empName, R_grandManager.lastName AS A_grandManagName
 PREFIX empP : <http://hr.example/DB/Employee#>
 PREFIX manP : <http://hr.example/DB/Manage#>
 SELECT ?name
-       { ?who empP:lastName "Smith"^^xsd:string
+ WHERE { ?who empP:lastName "Smith"^^xsd:string
          { ?above   manP:manages ?who .
            ?above   manP:manager ?manager .
            ?manager empP:lastName  ?name }
@@ -282,7 +282,7 @@ PREFIX empP : <http://hr.example/DB/Employee#>
 PREFIX manP : <http://hr.example/DB/Manage#>
 PREFIX xsd : <http://www.w3.org/2001/XMLSchema#>
 SELECT ?name
-       { { ?above   manP:manages ?who .
+ WHERE { { ?above   manP:manages ?who .
            ?above   manP:manager ?manager .
            ?manager empP:lastName  ?name }
          UNION
@@ -328,7 +328,7 @@ PREFIX empP : <http://hr.example/DB/Employee#>
 PREFIX manP : <http://hr.example/DB/Manage#>
 PREFIX xsd : <http://www.w3.org/2001/XMLSchema#>
 SELECT ?name
-       {
+ WHERE {
          ?who empP:lastName "Smith"^^xsd:string .
          ?who empP:birthday ?bday
          { ?above   manP:manages ?who .
@@ -376,7 +376,7 @@ PREFIX empP : <http://hr.example/DB/Employee#>
 PREFIX manP : <http://hr.example/DB/Manage#>
 PREFIX xsd : <http://www.w3.org/2001/XMLSchema#>
 SELECT ?name
-       {
+ WHERE {
          ?who empP:lastName "Smith"^^xsd:string
          { ?above   manP:manages ?who .
            ?above   manP:manager ?manager .
@@ -416,4 +416,49 @@ SELECT R_union1.A_name AS A_name
 """).get
     assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false) === sqlSelect)
   }
+
+//   test("transform nestOpt") {
+//     val sparqlParser = Sparql()
+//     val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
+// PREFIX emplP: <http://hr.example/DB/Employee#>
+// PREFIX mangP: <http://hr.example/DB/Manage#>
+
+// SELECT ?empName ?managName ?grandManagName
+//  WHERE {          ?emp            emplP:lastName   ?empName
+
+//        OPTIONAL { ?mang           mangP:manages    ?emp .
+//                   ?mang           mangP:manager    ?manager .
+//                   ?manager        emplP:lastName   ?managName
+//          OPTIONAL { ?grandMang    mangP:manages    ?manager .
+//                     ?grandMang    mangP:manager    ?grandManager .
+//                     ?grandManager emplP:lastName   ?grandManagName } }
+//        }
+// """).get
+//     val sqlParser = Sql()
+//     val sqlSelect = sqlParser.parseAll(sqlParser.select, """
+// SELECT R_union1.A_name AS A_name
+//   FROM Employee AS R_who
+//        INNER JOIN ( SELECT 0 AS _DISJOINT_, R_above.manager AS A_manager, R_manager.lastName AS A_name, R_above.id AS A_above, 
+//                 NULL AS A_below, NULL AS A_bday, R_above.manages AS A_who, NULL AS A_managed
+//                 FROM Manage AS R_above
+//                 INNER JOIN Employee AS R_manager
+//           WHERE R_above.manager IS NOT NULL AND R_above.manager=R_manager.id AND R_above.id IS NOT NULL
+//                 AND R_above.manages IS NOT NULL AND R_manager.lastName IS NOT NULL
+//        UNION
+//          SELECT 1 AS _DISJOINT_, NULL AS A_manager, R_managed.lastName AS A_name, NULL AS A_above, 
+//                 R_below.id AS A_below, R_managed.birthday AS A_bday, R_below.manager AS A_who, R_below.manages AS A_managed
+//                 FROM Manage AS R_below
+//                 INNER JOIN Employee AS R_managed
+//           WHERE R_managed.birthday IS NOT NULL AND R_below.manager IS NOT NULL AND R_below.id IS NOT NULL
+//                 AND R_below.manages=R_managed.id AND R_below.manages IS NOT NULL AND R_managed.lastName IS NOT NULL
+//        ) AS R_union1
+//  WHERE R_who.lastName="Smith" AND
+//        (R_union1._DISJOINT_!=0 OR R_who.id=R_union1.A_who) AND
+//        (R_union1._DISJOINT_!=1 OR R_who.id=R_union1.A_who) AND
+//        (R_union1._DISJOINT_!=1 OR R_union1.A_bday=R_who.birthday) AND
+//        R_who.id IS NOT NULL AND
+//        R_union1.A_bday IS NOT NULL
+// """).get
+//     assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false) === sqlSelect)
+//   }
 }

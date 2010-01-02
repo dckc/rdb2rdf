@@ -63,7 +63,7 @@ case class TermLit(lit:SparqlLiteral) extends Term
 case class Sparql() extends JavaTokenParsers {
 
   def select:Parser[SparqlSelect] =
-    rep(prefixdecls) ~ "SELECT" ~ attributelist ~ groupgraphpattern ^^ { case x~"SELECT"~a~gp => SparqlSelect(a, gp) }
+    rep(prefixdecls) ~ "SELECT" ~ attributelist ~ opt("WHERE") ~ groupgraphpattern ^^ { case x~"SELECT"~a~w~gp => SparqlSelect(a, gp) }
 
   def prefixdecls:Parser[Unit] =
     "PREFIX" ~ name ~ ":" ~ qnameORuri ^^ { case "PREFIX"~pre~":"~u => prefixes += (pre -> u) }
