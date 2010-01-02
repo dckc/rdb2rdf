@@ -13,14 +13,22 @@ import SQLParsers._
 import scala.util.parsing.combinator._
 import java.net.URI
 
-case class Union(disjoints:Set[Select]) {
-  override def toString = (disjoints mkString ("\nUNION\n"))
+sealed abstract class RelationORSubselect
+case class Subselect(sel:SelectORUnion) extends RelationORSubselect {
+  override def toString = "(\n" + sel + "\n                       )"
 }
-case class Select(attributelist:AttributeList, tablelist:TableList, expression:Option[Expression]) {
+sealed abstract class SelectORUnion
+case class Select(attributelist:AttributeList, tablelist:TableList, expression:Option[Expression]) extends SelectORUnion {
   override def toString = expression match {
     case Some(expr) => attributelist+"\n"+tablelist+"\n WHERE "+expr
     case None => attributelist+"\n"+tablelist
   }
+}
+case class Relation(n:Name) extends RelationORSubselect {
+  override def toString = n.s /* "'" + n.s + "'" */
+}
+case class Union(disjoints:Set[Select]) extends SelectORUnion {
+  override def toString = "\n" + (disjoints mkString ("\nUNION\n")) + "\n)"
 }
 case class AttributeList(attributes:Set[NamedAttribute]) {
   // foo, bar
@@ -34,7 +42,7 @@ sealed abstract class RelAliasAttributeORConst
 case class RelAliasAttribute(relalias:RelAlias, attribute:Attribute) extends RelAliasAttributeORConst {
   override def toString = relalias + "." + attribute
 }
-sealed abstract class Const  extends RelAliasAttributeORConst
+sealed abstract class Const extends RelAliasAttributeORConst
 case class ConstNULL() extends Const {
   override def toString = "NULL"
 }
@@ -51,23 +59,24 @@ case class Attribute(n:Name) {
 case class AttrAlias(n:Name) {
   override def toString = n.s /* "'" + n.s + "'" */
 }
-sealed abstract class RelationORSubselect
-case class Relation(n:Name) extends RelationORSubselect {
-  override def toString = n.s /* "'" + n.s + "'" */
-}
-case class Subselect(union:Union) extends RelationORSubselect {
-  override def toString = "\n" + union + "\n)"
-}
 case class RelAlias(n:Name) {
   override def toString = n.s /* "'" + n.s + "'" */
 }
 case class TableList(joins:Set[Join]) {
-  override def toString = "  FROM " + (joins mkString ("\n       INNER JOIN "))
+  override def toString = "  FROM " + joins.foldLeft(("", 0))(
+    (pair, entry) => (pair._1 + {
+      if (pair._2 == 0) entry.toString.substring(19) // !!! shameless!
+      else entry
+    }, pair._2+1))._1
 }
 
 sealed abstract class Join(res:AliasedResource)
-case class InnerJoin(res:AliasedResource) extends Join(res)
-case class LeftOuterJoin(res:AliasedResource, on:Expression) extends Join(res)
+case class InnerJoin(res:AliasedResource) extends Join(res) {
+  override def toString = "\n       INNER JOIN " + res
+}
+case class LeftOuterJoin(res:AliasedResource, on:Expression) extends Join(res) {
+  override def toString = "\n       LEFT OUTER JOIN " + res
+}
 
 case class AliasedResource(rel:RelationORSubselect, as:RelAlias) {
   override def toString = rel + " AS " + as
@@ -123,8 +132,8 @@ case class RelationDesc(primarykey:Option[Attribute], attributes:Map[Attribute, 
 
 case class Sql() extends JavaTokenParsers {
 
-  def union:Parser[Union] =
-    repsep(select, "UNION") ^^ { l => Union(l.toSet) }
+  def selectORunion:Parser[SelectORUnion] =
+    rep1sep(select, "UNION") ^^ { l => if (l.size == 1) l(0) else Union(l.toSet) }
 
   def select:Parser[Select] =
     "SELECT" ~ attributelist ~ "FROM" ~ tablelist ~ opt(where) ^^
@@ -164,7 +173,7 @@ case class Sql() extends JavaTokenParsers {
 
   def relationORsubselect:Parser[RelationORSubselect] = (
       """[a-zA-Z_]\w*""".r ^^ { x => Relation(Name(x)) }
-    | "(" ~ union ~ ")" ^^ { case "("~s~")" => Subselect(s) }
+    | "(" ~ selectORunion ~ ")" ^^ { case "("~s~")" => Subselect(s) }
   )
 
   def relalias:Parser[RelAlias] =

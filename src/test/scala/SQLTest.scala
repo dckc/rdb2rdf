@@ -272,5 +272,32 @@ SELECT R_emp.lastName AS A_empName, R_mang.manageName AS A_manageName
     assert(expected === (a.parseAll(a.select, e).get))
   }
 
+  test("parse LEFT OUTER SELECT") {
+    val a = Sql()
+    val e = """
+SELECT R_emp.lastName AS A_empName, R_mang.manageName AS A_manageName
+       FROM Employee AS R_emp
+            LEFT OUTER JOIN (
+    SELECT R_emp.lastName AS A_empName, R_mang.manageName AS A_manageName
+       FROM Employee AS R_emp
+            ) AS R_mang ON R_mang.emp=R_emp.id
+ WHERE R_emp.lastName IS NOT NULL
+"""
+    val expected = 
+      Select(AttributeList(Set(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("lastName"))),AttrAlias(Name("A_empName"))),
+			       NamedAttribute(RelAliasAttribute(RelAlias(Name("R_mang")),Attribute(Name("manageName"))),AttrAlias(Name("A_manageName"))))),
+	     TableList(Set(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))),
+			   LeftOuterJoin(AliasedResource(
+			     Subselect(Select(AttributeList(Set(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("lastName"))),AttrAlias(Name("A_empName"))),
+						      NamedAttribute(RelAliasAttribute(RelAlias(Name("R_mang")),Attribute(Name("manageName"))),AttrAlias(Name("A_manageName"))))),
+				    TableList(Set(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))))),
+				    None)),
+			     RelAlias(Name("R_mang"))),
+					 RelationalExpressionEq(RelAliasAttribute(RelAlias(Name("R_mang")),Attribute(Name("emp"))),
+								RValueAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("id")))))))),
+	     Some(RelationalExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("lastName"))))))
+    assert(expected === (a.parseAll(a.select, e).get))
+  }
+
 
 }
