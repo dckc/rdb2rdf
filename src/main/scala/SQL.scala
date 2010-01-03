@@ -34,24 +34,24 @@ case class AttributeList(attributes:Set[NamedAttribute]) {
   // foo, bar
   override def toString = "SELECT "+(attributes mkString (",\n       "))
 }
-case class NamedAttribute(value:RelAliasAttributeORConst, attralias:AttrAlias) {
+case class NamedAttribute(value:RelAliasAttributeORExpression, attralias:AttrAlias) {
   override def toString = value + " AS " + attralias
 }
 //case class RelAttribute(relation:Relation, attribute:Attribute) c.f. ForeignKey
-sealed abstract class RelAliasAttributeORConst
-case class RelAliasAttribute(relalias:RelAlias, attribute:Attribute) extends RelAliasAttributeORConst {
+sealed abstract class RelAliasAttributeORExpression
+case class RelAliasAttribute(relalias:RelAlias, attribute:Attribute) extends RelAliasAttributeORExpression {
   override def toString = relalias + "." + attribute
 }
-sealed abstract class Const extends RelAliasAttributeORConst
-case class ConstNULL() extends Const {
-  override def toString = "NULL"
-}
-case class ConstInt(i:String) extends Const {
-  override def toString = "" + i
-}
-case class ConstChars(s:String) extends Const {
-  override def toString = "\"" + s + "\""
-}
+// sealed abstract class Const extends RelAliasAttributeORPrimaryExpression
+// case class ConstNULL() extends Const {
+//   override def toString = "NULL"
+// }
+// case class ConstInt(i:String) extends Const {
+//   override def toString = "" + i
+// }
+// case class ConstChars(s:String) extends Const {
+//   override def toString = "\"" + s + "\""
+// }
 
 case class Attribute(n:Name) {
   override def toString = n.s /* "'" + n.s + "'" */
@@ -81,7 +81,7 @@ case class LeftOuterJoin(res:AliasedResource, on:Expression) extends Join(res) {
 case class AliasedResource(rel:RelationORSubselect, as:RelAlias) {
   override def toString = rel + " AS " + as
 }
-sealed abstract class Expression
+sealed abstract class Expression extends RelAliasAttributeORExpression
 case class ExprConjunction(exprs:Set[Expression]) extends Expression {
   override def toString = "(" + (exprs mkString (")\n       AND (")) + ")"
 }
@@ -89,25 +89,32 @@ case class ExprDisjunction(exprs:Set[Expression]) extends Expression {
   override def toString = "(" + (exprs mkString (") OR (")) + ")"
 }
 sealed abstract class RelationalExpression extends Expression
-case class RelationalExpressionEq(l:RelAliasAttribute, r:RValue) extends RelationalExpression {
+case class RelationalExpressionEq(l:Expression, r:Expression) extends RelationalExpression {
   override def toString = l + "=" + r
 }
-case class RelationalExpressionNe(l:RelAliasAttribute, r:RValue) extends RelationalExpression {
+case class RelationalExpressionNe(l:Expression, r:Expression) extends RelationalExpression {
   override def toString = l + "!=" + r
 }
-case class RelationalExpressionLt(l:RelAliasAttribute, r:RValue) extends RelationalExpression {
+case class RelationalExpressionLt(l:Expression, r:Expression) extends RelationalExpression {
   override def toString = l + "<" + r
 }
-case class RelationalExpressionNotNull(l:RelAliasAttribute) extends RelationalExpression {
+case class RelationalExpressionNotNull(l:Expression) extends RelationalExpression { // Expression?
   override def toString = l + " IS NOT NULL"
 }
-sealed abstract class RValue
-case class RValueAttr(fqattribute:RelAliasAttribute) extends RValue {
+sealed abstract class PrimaryExpression extends Expression
+case class PrimaryExpressionAttr(fqattribute:RelAliasAttribute) extends PrimaryExpression {
   override def toString = "" + fqattribute
 }
-case class RValueTyped(datatype:SQLDatatype, i:Name) extends RValue {
+case class PrimaryExpressionTyped(datatype:SQLDatatype, i:Name) extends PrimaryExpression {
   override def toString = i.s /* "'" + i.s + "'" */ /* + datatype */
 }
+case class ConstNULL() extends PrimaryExpression {
+  override def toString = "NULL"
+}
+case class Concat(args:List[Expression]) extends PrimaryExpression {
+  override def toString = args.mkString("CONCAT(", ", ", ")")
+}
+
 case class Name(s:String)
 
 object Name {
@@ -146,24 +153,18 @@ case class Sql() extends JavaTokenParsers {
     repsep(namedattribute, ",") ^^ { l => AttributeList(l.toSet) }
 
   def namedattribute:Parser[NamedAttribute] =
-    fqattributeORconst ~ "AS" ~ attralias ^^
-    { case fqattributeORconst ~ "AS" ~ attralias =>
-      NamedAttribute(fqattributeORconst, attralias) }
+    fqattributeORprimaryexpression ~ "AS" ~ attralias ^^
+    { case fqattributeORprimaryexpression ~ "AS" ~ attralias =>
+      NamedAttribute(fqattributeORprimaryexpression, attralias) }
 
-  def fqattributeORconst:Parser[RelAliasAttributeORConst] = (
+  def fqattributeORprimaryexpression:Parser[RelAliasAttributeORExpression] = (
       fqattribute ^^ { case fqattribute => fqattribute }
-    | const ^^ { case const => const }
+    | primaryexpression ^^ { case const => const }
   )
 
   def fqattribute:Parser[RelAliasAttribute] =
     relalias ~ "." ~ attribute ^^
     { case relalias ~ "." ~ attribute => RelAliasAttribute(relalias, attribute) }
-
-  def const:Parser[Const] = (
-      "NULL" ^^ { case "NULL" => ConstNULL() }
-    | int ^^ { case i => ConstInt(i) }
-    | chars ^^ { case ch => ConstChars(ch) }
-  )
 
   def attribute:Parser[Attribute] =
     """[a-zA-Z_]\w*""".r ^^ { x => Attribute(Name(x)) }
@@ -203,22 +204,25 @@ case class Sql() extends JavaTokenParsers {
     { xs => if (xs.size > 1) ExprConjunction(xs.toSet) else xs(0) }
 
   def relationalexpression:Parser[Expression] = (
-      fqattribute ~ "=" ~ rvalue ^^
-      { case fqattribute ~ "=" ~ rvalue => RelationalExpressionEq(fqattribute, rvalue) }
-    | fqattribute ~ "!=" ~ rvalue ^^
-      { case fqattribute ~ "!=" ~ rvalue => RelationalExpressionNe(fqattribute, rvalue) }
-    | fqattribute ~ "<" ~ rvalue ^^
-      { case fqattribute ~ "<" ~ rvalue => RelationalExpressionLt(fqattribute, rvalue) }
-    | fqattribute ~ "IS" ~ "NOT" ~ "NULL" ^^
-      { case fqattribute ~ "IS" ~ "NOT" ~ "NULL" => RelationalExpressionNotNull(fqattribute) }
-    | "(" ~ expression ~ ")" ^^
-      { case "("~x~")" => x }
+      primaryexpression ~ "=" ~ primaryexpression ^^
+      { case primaryexpression ~ "=" ~ rvalue => RelationalExpressionEq(primaryexpression, rvalue) }
+    | primaryexpression ~ "!=" ~ primaryexpression ^^
+      { case primaryexpression ~ "!=" ~ rvalue => RelationalExpressionNe(primaryexpression, rvalue) }
+    | primaryexpression ~ "<" ~ primaryexpression ^^
+      { case primaryexpression ~ "<" ~ rvalue => RelationalExpressionLt(primaryexpression, rvalue) }
+    | primaryexpression ~ "IS" ~ "NOT" ~ "NULL" ^^
+      { case primaryexpression ~ "IS" ~ "NOT" ~ "NULL" => RelationalExpressionNotNull(primaryexpression) }
+    | primaryexpression ^^
+      { case primaryexpression => primaryexpression }
   )
 
-  def rvalue:Parser[RValue] = (
-      fqattribute ^^ { RValueAttr(_) }
-    | """[0-9]+""".r ^^ { x => RValueTyped(SQLDatatype.INTEGER, Name(x)) }
-    | "\"[^\"]*\"".r  ^^ { x => RValueTyped(SQLDatatype.STRING, Name(x.substring(1, x.size - 1))) }
+  def primaryexpression:Parser[Expression] = (
+      fqattribute ^^ { PrimaryExpressionAttr(_) }
+    | int ^^ { i => PrimaryExpressionTyped(SQLDatatype.INTEGER, Name(i)) }
+    | chars  ^^ { x => PrimaryExpressionTyped(SQLDatatype.STRING, Name(x.substring(1, x.size - 1))) }
+    | "NULL" ^^ { case "NULL" => ConstNULL() }
+    | "CONCAT" ~ "(" ~ rep1sep(expression, ",") ~ ")" ^^ { case "CONCAT"~"("~expressions~")" => Concat(expressions) }
+    | "(" ~ expression ~ ")" ^^ { case "("~x~")" => x }
   )
 
 }
