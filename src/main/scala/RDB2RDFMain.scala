@@ -53,14 +53,14 @@ object RDB2RDF {
 
   def uriConstraint(state:R2RState, constrainMe:RelAliasAttribute, u:ObjUri, enforeForeignKeys:Boolean):R2RState = {
     // println("equiv+= " + toString(constrainMe) + "=" + value)
-    //R2RState(state.joins, state.varmap, state.exprs + RelationalExpressionEq(constrainMe,RValueTyped(SQLDatatype.INTEGER,Name(u.v.s))))
+    //R2RState(state.joins, state.varmap, state.exprs + RelationalExpressionEq(constrainMe,PrimaryExpressionTyped(SQLDatatype.INTEGER,Name(u.v.s))))
     val relvar = if (enforeForeignKeys) RelAliasAttribute(constrainMe.relalias, Attribute(Name(u.attr.s))) else constrainMe
-    R2RState(state.joins, state.varmap, state.exprs + RelationalExpressionEq(relvar,RValueTyped(SQLDatatype.INTEGER,Name(u.v.s))))
+    R2RState(state.joins, state.varmap, state.exprs + RelationalExpressionEq(PrimaryExpressionAttr(relvar),PrimaryExpressionTyped(SQLDatatype.INTEGER,Name(u.v.s))))
   }
 
   def literalConstraint(state:R2RState, constrainMe:RelAliasAttribute, lit:SparqlLiteral, dt:SQLDatatype):R2RState = {
     // println("equiv+= " + toString(attr) + "=" + lit)
-    R2RState(state.joins, state.varmap, state.exprs + RelationalExpressionEq(constrainMe,RValueTyped(dt,Name(lit.lit.lexicalForm))))    
+    R2RState(state.joins, state.varmap, state.exprs + RelationalExpressionEq(PrimaryExpressionAttr(constrainMe),PrimaryExpressionTyped(dt,Name(lit.lit.lexicalForm))))    
   }
 
   /** varConstraint
@@ -96,7 +96,7 @@ object RDB2RDF {
 	state // !!! what about disjoints?
       else {
 	/* Constraint against the initial binding for this variable. */
-	val constraint = RelationalExpressionEq(varToAttribute(state.varmap, v), RValueAttr(constrainMe))
+	val constraint = RelationalExpressionEq(PrimaryExpressionAttr(varToAttribute(state.varmap, v)), PrimaryExpressionAttr(constrainMe))
 	R2RState(state.joins, state.varmap, 
 		 if (varToAttributeDisjoints(state.varmap, v).size > 0) {
 		   state.exprs ++ {varToAttributeDisjoints(state.varmap, v) map ((d) => ExprDisjunction(Set(d, constraint)))}
@@ -176,7 +176,7 @@ object RDB2RDF {
 	      val fkaliasattr = RelAliasAttribute(oRelAlias, fkattr)
 	      val state_t = R2RState(state_subjJoin.joins + InnerJoin(AliasedResource(fkrel,oRelAlias)),
 				     state_subjJoin.varmap,
-				     state_subjJoin.exprs + RelationalExpressionEq(fkaliasattr,RValueAttr(objattr)))
+				     state_subjJoin.exprs + RelationalExpressionEq(PrimaryExpressionAttr(fkaliasattr),PrimaryExpressionAttr(objattr)))
 
 	      (fkaliasattr, fkrel, fkdt, state_t)
 	    } else {
@@ -248,8 +248,35 @@ object RDB2RDF {
     }
   }
 
+  def varToConcat(varmap:Map[Var, SQL2RDFValueMapper], vvar:Var, stem:StemURI):Expression = {
+    varmap(vvar) match {
+      case IntMapper(relalias, _) => PrimaryExpressionAttr(relalias)
+      case StringMapper(relalias, _) => 
+	Concat(List(PrimaryExpressionTyped(SQLDatatype("String"),Name("\\\"")),
+		    PrimaryExpressionAttr(relalias),
+		    PrimaryExpressionTyped(SQLDatatype("String"),Name("\\\"^^<http://www.w3.org/2001/XMLSchema#string>"))))
+      case DateMapper(relalias, _) => PrimaryExpressionAttr(relalias)
+      case RDFNoder(relation, relalias, _) => 
+	Concat(List(PrimaryExpressionTyped(SQLDatatype("String"),Name(stem.s)),
+		    PrimaryExpressionTyped(SQLDatatype("String"),relation.n),
+		    PrimaryExpressionTyped(SQLDatatype("String"),Name("/")),
+		    PrimaryExpressionTyped(SQLDatatype("String"),relalias.attribute.n),
+		    PrimaryExpressionTyped(SQLDatatype("String"),Name(".")),
+		    PrimaryExpressionAttr(relalias),
+		    PrimaryExpressionTyped(SQLDatatype("String"),Name("#record"))))
+      case RDFBNoder(relation, relalias, _) => 
+	Concat(List(PrimaryExpressionTyped(SQLDatatype("String"),Name("_:")),
+		    PrimaryExpressionTyped(SQLDatatype("String"),relation.n),
+		    PrimaryExpressionTyped(SQLDatatype("String"),Name(".")),
+		    PrimaryExpressionTyped(SQLDatatype("String"),relalias.attribute.n),
+		    PrimaryExpressionTyped(SQLDatatype("String"),Name(".")),
+		    PrimaryExpressionAttr(relalias)))
+    }
+    
+  }
+
   def filter2expr(varmap:Map[Var, SQL2RDFValueMapper], f:SparqlPrimaryExpression):RelationalExpression = {
-    val (lTerm:Term, rTerm:Term, sqlexpr) = f match { // sqlexpr::((RelAliasAttribute,RValueAttr)=>RelationalExpression)
+    val (lTerm:Term, rTerm:Term, sqlexpr) = f match { // sqlexpr::((RelAliasAttribute,PrimaryExpressionAttr)=>RelationalExpression)
       case SparqlPrimaryExpressionEq(l, r) => (l.term, r.term, RelationalExpressionEq(_,_))
       case SparqlPrimaryExpressionLt(l, r) => (l.term, r.term, RelationalExpressionLt(_,_))
     }
@@ -263,11 +290,11 @@ object RDB2RDF {
 	val r = rTerm match {
 	  case TermUri(obj) => null // :ObjUri
 	  case TermVar(v) => { // :Var
-	    RValueAttr(varToAttribute(varmap, v))
+	    PrimaryExpressionAttr(varToAttribute(varmap, v))
 	  }
-	  case TermLit(lit) => null // :SparqlLiteral => RValueTyped(SQLDatatype, lit.n)
+	  case TermLit(lit) => null // :SparqlLiteral => PrimaryExpressionTyped(SQLDatatype, lit.n)
 	}
-	sqlexpr(l, r)
+	sqlexpr(PrimaryExpressionAttr(l), r)
       }
       // does not handle FILTER (7 = ?v)
       case TermLit(lit) => error("only SPARQL PrimaryExpressions with a variable on the left have been implemented: punting on " + f)
@@ -288,7 +315,7 @@ object RDB2RDF {
       case TriplesBlock(triplepatterns) => {
 	/* Examine each triple, updating the compilation state. */
 	val state2 = triplepatterns.foldLeft(state)((incState,s) => bindOnPredicate(db, incState, s, pk, enforeForeignKeys))
-	val nullExprs = findVars(gp) map (vvar => RelationalExpressionNotNull(varToAttribute(state2.varmap, vvar)))
+	val nullExprs = findVars(gp) map (vvar => RelationalExpressionNotNull(PrimaryExpressionAttr(varToAttribute(state2.varmap, vvar))))
 	R2RState(state2.joins, state2.varmap, state2.exprs ++ nullExprs)
       }
       case TableConjunction(list) => {
@@ -307,9 +334,9 @@ object RDB2RDF {
 	  val (outerState, outerDisjoints, no) = incPair
 	  val disjointState = mapGraphPattern(db, emptyState, disjoint, pk, enforeForeignKeys)
 	  val disjointVars = findVars(disjoint)
-	  val disjointNo = NamedAttribute(ConstInt("" + no), AttrAlias(Name("_DISJOINT_")))
+	  val disjointNo = NamedAttribute(PrimaryExpressionTyped(SQLDatatype.INTEGER,Name("" + no)), AttrAlias(Name("_DISJOINT_")))
 	  val disjointNoAliasAttr = RelAliasAttribute(unionAlias, Attribute(Name("_DISJOINT_")))
-	  val disjointCond = RelationalExpressionNe(disjointNoAliasAttr, RValueTyped(SQLDatatype.INTEGER,Name("" + no)))
+	  val disjointCond = RelationalExpressionNe(PrimaryExpressionAttr(disjointNoAliasAttr), PrimaryExpressionTyped(SQLDatatype.INTEGER,Name("" + no)))
 
 	  val attrlist:Set[NamedAttribute] = unionVars.foldLeft(Set(disjointNo))((attrs, v) => {
 	    val attrOrNull = if (disjointState.varmap.contains(v)) varToAttribute(disjointState.varmap, v) else ConstNULL()
@@ -345,7 +372,7 @@ object RDB2RDF {
 	      val newConstraints =
 		if (varToAttribute(outerState.varmap, v) != varAliasAttr) {
 		  /* Constraint against binding from earlier GP. */
-		  val constraint = RelationalExpressionEq(varToAttribute(outerState.varmap, v), RValueAttr(varAliasAttr))
+		  val constraint = RelationalExpressionEq(PrimaryExpressionAttr(varToAttribute(outerState.varmap, v)), PrimaryExpressionAttr(varAliasAttr))
 		  if (varToAttributeDisjoints(outerState.varmap, v).size > 0)
 		    // (union0._DISJOINT_ != 0 AND union1._DISJOINT_ != 2) OR union0.x=union1.x
 		    varToAttributeDisjoints(outerState.varmap, v) map ((d) => ExprDisjunction(Set(ExprConjunction(Set(d, disjointCond)), constraint)))
@@ -409,14 +436,13 @@ object RDB2RDF {
       	      Map()
       	    val newConstraints = {
       	      /* Constraint against binding from earlier GP. */
-      	      val constraint = RelationalExpressionEq(varToAttribute(state.varmap, v), RValueAttr(varAliasAttr))
+      	      val constraint = RelationalExpressionEq(PrimaryExpressionAttr(varToAttribute(state.varmap, v)), PrimaryExpressionAttr(varAliasAttr))
       	      if (varToAttributeDisjoints(state.varmap, v).size > 0)
       		// (leftJoin0._DISJOINT_ != 0 AND leftJoin1._DISJOINT_ != 2) OR leftJoin0.x=leftJoin1.x
       		varToAttributeDisjoints(state.varmap, v) map ((d) => ExprDisjunction(Set(d, constraint)))
       	      else
       		Set(constraint)
       	    }
-	    println("" + v + " begets " + newMap + " and " + newConstraints)
       	    R2RState(myState.joins, myState.varmap ++ newMap, myState.exprs ++ newConstraints)
       	  } else {
       	    /* This variable is new to the outer context. */
@@ -443,7 +469,7 @@ object RDB2RDF {
     }
   }
 
-  def apply (db:DatabaseDesc, sparql:SparqlSelect, stem:StemURI, pk:PrimaryKey, enforeForeignKeys:Boolean) : Select = {
+  def apply (db:DatabaseDesc, sparql:SparqlSelect, stem:StemURI, pk:PrimaryKey, enforeForeignKeys:Boolean, concat:Boolean) : Select = {
     val SparqlSelect(attrs, triples) = sparql
 
     /* Create an object to hold our compilation state. */
@@ -458,7 +484,11 @@ object RDB2RDF {
     /* Select the attributes corresponding to the variables
      * in the SPARQL SELECT.  */
     val attrlist:Set[NamedAttribute] = attrs.attributelist.foldLeft(Set[NamedAttribute]())((attrs, vvar) => 
-      attrs ++ Set(NamedAttribute(varToAttribute(r2rState.varmap, vvar), AttrAlias(Name("A_" + vvar.s)))))
+      attrs + NamedAttribute({
+	if (concat) varToConcat(r2rState.varmap, vvar, stem)
+	else varToAttribute(r2rState.varmap, vvar)
+      } , AttrAlias(Name("A_" + vvar.s))
+      ))
 
     /* Construct the generated query as an abstract syntax. */
     Select(
