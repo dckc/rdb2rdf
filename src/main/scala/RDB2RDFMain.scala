@@ -216,6 +216,14 @@ object RDB2RDF {
 	/* Examine each triple, updating the compilation state. */
 	triplepatterns.foldLeft(Set[Var]())((x, y) => x ++ findVars(y))
 
+      case TableConjunction(list) =>
+	/* Examine each triple, updating the compilation state. */
+	list.foldLeft(Set[Var]())((x, y) => x ++ findVars(y))
+
+      case OptionalGraphPattern(gp2) =>
+	/* Examine each triple, updating the compilation state. */
+	findVars(gp2)
+
       case x => error("no code to handle " + x)
     }
   }
@@ -364,84 +372,73 @@ object RDB2RDF {
 	val subselect = Subselect(Union(disjoints))
 	R2RState(state.joins + InnerJoin(AliasedResource(subselect,unionAlias)), state2.varmap, state2.exprs)
       }
-      // case OptionalGraphPattern(gp) => {
-      // 	val leftJoinAlias = RelAlias(Name("R_leftJoin" + state.joins.size))
-      // 	val initDisjoints:Set[Select] = Set()
-      // 	val emptyState = R2RState(
-      // 	  Set[Join](), 
-      // 	  Map[Var, SQL2RDFValueMapper](), 
-      // 	  Set[Expression]()
-      // 	)
-      // 	val leftJoinVars = list.foldLeft(Set[Var]())((mySet,disjoint) => mySet ++ findVars(disjoint)).toList
-      // 	val (state2, disjoints, count) = list.foldLeft((state, initDisjoints, 0))((incPair,disjoint) => {
-      // 	  val (outerState, outerDisjoints, no) = incPair
-      // 	  val disjointState = mapGraphPattern(db, emptyState, disjoint, pk, enforeForeignKeys)
-      // 	  val disjointVars = findVars(disjoint)
-      // 	  val disjointNo = NamedAttribute(ConstInt("" + no), AttrAlias(Name("_DISJOINT_")))
-      // 	  val disjointNoAliasAttr = RelAliasAttribute(leftJoinAlias, Attribute(Name("_DISJOINT_")))
-      // 	  val disjointCond = RelationalExpressionNe(disjointNoAliasAttr, RValueTyped(SQLDatatype.INTEGER,Name("" + no)))
+      case OptionalGraphPattern(gp) => {
+      	val leftJoinAlias = RelAlias(Name("R_opt" + state.joins.size))
+      	val initDisjoints:Set[Select] = Set()
+      	val emptyState = R2RState(
+      	  Set[Join](), 
+      	  Map[Var, SQL2RDFValueMapper](), 
+      	  Set[Expression]()
+      	)
+      	val optionalState = mapGraphPattern(db, emptyState, gp, pk, enforeForeignKeys)
+      	val optionalVars = findVars(gp)
 
-      // 	  val attrlist:Set[NamedAttribute] = leftJoinVars.foldLeft(Set(disjointNo))((attrs, v) => {
-      // 	    val attrOrNull = if (disjointState.varmap.contains(v)) varToAttribute(disjointState.varmap, v) else ConstNULL()
-      // 	    attrs ++ Set(NamedAttribute(attrOrNull, AttrAlias(Name("A_" + v.s))))
-      // 	  })
+      	val leftJoinVars = findVars(gp).toList
+      	val attrlist:Set[NamedAttribute] = leftJoinVars.foldLeft(Set[NamedAttribute]())((attrs, v) =>
+      	  attrs ++ Set(NamedAttribute(varToAttribute(optionalState.varmap, v), AttrAlias(Name("A_" + v.s))))
+      	)
 
-      // 	  val subselect = Select(
-      // 	    AttributeList(attrlist),
-      // 	    TableList(disjointState.joins),
-      // 	    disjointState.exprs.size match {
-      // 	      case 0 => None
-      // 	      case 1 => Some(disjointState.exprs.toList(0))
-      // 	      case _ => Some(ExprConjunction(disjointState.exprs))
-      // 	    }
-      // 	  )
-      // 	  val outerState2 = disjointVars.foldLeft(outerState)((myState, v) => {
-      // 	    val varAliasAttr = RelAliasAttribute(leftJoinAlias, Attribute(Name("A_" + v.s)))
-      // 	    if (myState.varmap.contains(v)) {
-      // 	      /* The variable has already been bound. */
-      // 	      val newMap:Map[Var, SQL2RDFValueMapper] = if (varToAttribute(myState.varmap, v) == varAliasAttr) {
-      // 		/* Same var was bound in an earlier disjoint. */
-      // 		val oldDisjoints = varToAttributeDisjoints(myState.varmap, v)
-      // 		// myState
-      // 		Map(v -> { disjointState.varmap(v) match {
-      // 		  case IntMapper(_, _)      => IntMapper(varAliasAttr, oldDisjoints + disjointCond)
-      // 		  case StringMapper(_, _)   => StringMapper(varAliasAttr, oldDisjoints + disjointCond)
-      // 		  case DateMapper(_, _)     => DateMapper(varAliasAttr, oldDisjoints + disjointCond)
-      // 		  case RDFNoder(rel, _, _)  => RDFNoder(rel, varAliasAttr, oldDisjoints + disjointCond)
-      // 		  case RDFBNoder(rel, _, _) => RDFBNoder(rel, varAliasAttr, oldDisjoints + disjointCond)
-      // 		} } )
-      // 	      } else
-      // 		Map()
-      // 	      val newConstraints =
-      // 		if (varToAttribute(outerState.varmap, v) != varAliasAttr) {
-      // 		  /* Constraint against binding from earlier GP. */
-      // 		  val constraint = RelationalExpressionEq(varToAttribute(outerState.varmap, v), RValueAttr(varAliasAttr))
-      // 		  if (varToAttributeDisjoints(outerState.varmap, v).size > 0)
-      // 		    // (leftJoin0._DISJOINT_ != 0 AND leftJoin1._DISJOINT_ != 2) OR leftJoin0.x=leftJoin1.x
-      // 		    varToAttributeDisjoints(outerState.varmap, v) map ((d) => ExprDisjunction(Set(ExprConjunction(Set(d, disjointCond)), constraint)))
-      // 		  else
-      // 		    Set(ExprDisjunction(Set(disjointCond, constraint)))
-      // 		} else {
-      // 		  Set()
-      // 		}
-      // 	      R2RState(myState.joins, myState.varmap ++ newMap, myState.exprs ++ newConstraints)
-      // 	    } else {
-      // 	      /* This variable is new to the outer context. */
-      // 	      val mapper:SQL2RDFValueMapper = disjointState.varmap(v) match {
-      // 		case IntMapper(_, _)      => IntMapper(varAliasAttr, Set(disjointCond))
-      // 		case StringMapper(_, _)   => StringMapper(varAliasAttr, Set(disjointCond))
-      // 		case DateMapper(_, _)   => DateMapper(varAliasAttr, Set(disjointCond))
-      // 		case RDFNoder(rel, _, _)  => RDFNoder(rel, varAliasAttr, Set(disjointCond))
-      // 		case RDFBNoder(rel, _, _) => RDFBNoder(rel, varAliasAttr, Set(disjointCond))
-      // 	      }
-      // 	      R2RState(myState.joins, myState.varmap + (v -> mapper), myState.exprs)
-      // 	    }
-      // 	  })
-      // 	  (outerState2, outerDisjoints ++ Set(subselect), no+1)
-      // 	})
-      // 	val subselect = Subselect(Union(disjoints))
-      // 	R2RState(state.joins + InnerJoin(AliasedResource(subselect,unionAlias)), state2.varmap, state2.exprs)
-      // }
+      	val subselect = Select(
+      	  AttributeList(attrlist),
+      	  TableList(optionalState.joins),
+      	  optionalState.exprs.size match {
+      	    case 0 => None
+      	    case 1 => Some(optionalState.exprs.toList(0))
+      	    case _ => Some(ExprConjunction(optionalState.exprs))
+      	  }
+      	)
+
+      	val outerState2 = optionalVars.foldLeft(R2RState(state.joins, state.varmap, Set[Expression]()))((myState, v) => {
+      	  val varAliasAttr = RelAliasAttribute(leftJoinAlias, Attribute(Name("A_" + v.s)))
+      	  if (myState.varmap.contains(v)) {
+      	    /* The variable has already been bound. */
+      	    val newMap:Map[Var, SQL2RDFValueMapper] = if (varToAttribute(myState.varmap, v) == varAliasAttr) {
+      	      /* Same var was already bound. */
+	      error("Variable " + v + " already bound to " + varAliasAttr)
+      	    } else
+      	      Map()
+      	    val newConstraints = {
+      	      /* Constraint against binding from earlier GP. */
+      	      val constraint = RelationalExpressionEq(varToAttribute(state.varmap, v), RValueAttr(varAliasAttr))
+      	      if (varToAttributeDisjoints(state.varmap, v).size > 0)
+      		// (leftJoin0._DISJOINT_ != 0 AND leftJoin1._DISJOINT_ != 2) OR leftJoin0.x=leftJoin1.x
+      		varToAttributeDisjoints(state.varmap, v) map ((d) => ExprDisjunction(Set(d, constraint)))
+      	      else
+      		Set(constraint)
+      	    }
+	    println("" + v + " begets " + newMap + " and " + newConstraints)
+      	    R2RState(myState.joins, myState.varmap ++ newMap, myState.exprs ++ newConstraints)
+      	  } else {
+      	    /* This variable is new to the outer context. */
+      	    val mapper:SQL2RDFValueMapper = optionalState.varmap(v) match {
+      	      case IntMapper(_, _)      => IntMapper(varAliasAttr, Set())
+      	      case StringMapper(_, _)   => StringMapper(varAliasAttr, Set())
+      	      case DateMapper(_, _)   => DateMapper(varAliasAttr, Set())
+      	      case RDFNoder(rel, _, _)  => RDFNoder(rel, varAliasAttr, Set())
+      	      case RDFBNoder(rel, _, _) => RDFBNoder(rel, varAliasAttr, Set())
+      	    }
+      	    R2RState(myState.joins, myState.varmap + (v -> mapper), myState.exprs)
+      	  }
+      	})
+      	val join = LeftOuterJoin(AliasedResource(Subselect(subselect), leftJoinAlias), 
+      	  outerState2.exprs.size match {
+      	    case 0 => error ("Nested GP has no variables shared with its context; cowaredly refusing to join ON 1.")
+      	    case 1 => outerState2.exprs.toList(0)
+      	    case _ => ExprConjunction(outerState2.exprs)
+      	  }
+			       )
+      	R2RState(state.joins + join, outerState2.varmap, state.exprs)
+      }
       case x => error("no code to handle " + x)
     }
   }

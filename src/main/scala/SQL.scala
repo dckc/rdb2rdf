@@ -75,7 +75,7 @@ case class InnerJoin(res:AliasedResource) extends Join(res) {
   override def toString = "\n       INNER JOIN " + res
 }
 case class LeftOuterJoin(res:AliasedResource, on:Expression) extends Join(res) {
-  override def toString = "\n       LEFT OUTER JOIN " + res
+  override def toString = "\n       LEFT OUTER JOIN " + res + " ON " + on
 }
 
 case class AliasedResource(rel:RelationORSubselect, as:RelAlias) {

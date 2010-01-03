@@ -417,39 +417,88 @@ SELECT R_union1.A_name AS A_name
     assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false) === sqlSelect)
   }
 
-//   test("transform nestOpt") {
-//     val sparqlParser = Sparql()
-//     val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
-// PREFIX emplP: <http://hr.example/DB/Employee#>
-// PREFIX mangP: <http://hr.example/DB/Manage#>
+  test("transform optJoin1") {
+    val sparqlParser = Sparql()
+    val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
+PREFIX emplP: <http://hr.example/DB/Employee#>
+PREFIX mangP: <http://hr.example/DB/Manage#>
 
-// SELECT ?empName ?managName ?grandManagName
-//  WHERE {          ?emp            emplP:lastName   ?empName
-//        OPTIONAL { ?mang           mangP:manages    ?emp .
-//                   ?mang           mangP:manager    ?manager .
-//                   ?manager        emplP:lastName   ?managName
-//          OPTIONAL { ?grandMang    mangP:manages    ?manager .
-//                     ?grandMang    mangP:manager    ?grandManager .
-//                     ?grandManager emplP:lastName   ?grandManagName } }
-//        }
-// """).get
-//     val sqlParser = Sql()
-//     val sqlSelect = sqlParser.parseAll(sqlParser.select, """
-// SELECT R_emp.lastName AS A_empName, R_opt1.A_managName AS A_managName, R_opt1.A_grandManagName AS A_grandManagName
-//        FROM Employee AS R_emp
-//             LEFT OUTER JOIN (
-//     SELECT R_opt1.A_grandManagName AS A_grandManagName, R_manager.lastName AS A_managName, R_mang.manages AS R_emp, R_mang.manager AS A_manager
-//            FROM Manage AS R_mang
-//                 INNER JOIN Employee AS R_manager
-//                 LEFT OUTER JOIN (
-//         SELECT R_grandManager.lastName AS A_grandManagName, R_grandMang.manages AS A_manager
-//                FROM Manage AS R_grandMang
-//                     INNER JOIN Employee AS R_grandManager
-//                  ) AS R_opt1 ON R_opt1.manager=R_mang.manager
-//           WHERE R_manager.id=R_mang.manager AND R_grandManager.id=R_grandMang.manager
-//              ) AS R_opt1 ON opt1.emp=R_emp.id
-//  WHERE R_emp.lastName IS NOT NULL
-// """).get
-//     assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false) === sqlSelect)
-//   }
+SELECT ?empName ?managName ?grandManagName
+ WHERE {          ?emp            emplP:lastName   ?empName
+         OPTIONAL { ?mang         mangP:manages    ?emp .
+                    ?mang         mangP:manager    ?manager .
+                    ?manager      emplP:lastName   ?managName .
+                    ?grandMang    mangP:manages    ?manager .
+                    ?grandMang    mangP:manager    ?grandManager .
+                    ?grandManager emplP:lastName   ?grandManagName } }
+""").get
+    val sqlParser = Sql()
+    val sqlSelect = sqlParser.parseAll(sqlParser.select, """
+SELECT R_emp.lastName AS A_empName, R_opt1.A_managName AS A_managName, R_opt1.A_grandManagName AS A_grandManagName
+       FROM Employee AS R_emp
+            LEFT OUTER JOIN (
+    SELECT R_grandManager.lastName AS A_grandManagName, R_manager.lastName AS A_managName, R_mang.manages AS A_emp,
+       R_grandMang.manager AS A_grandManager,
+       R_mang.id AS A_mang,
+       R_mang.manager AS A_manager,
+       R_grandMang.id AS A_grandMang
+           FROM Manage AS R_mang
+                INNER JOIN Employee AS R_manager
+                INNER JOIN Manage AS R_grandMang
+                INNER JOIN Employee AS R_grandManager
+     WHERE R_mang.manager=R_manager.id AND R_mang.manager=R_grandMang.manages AND R_grandMang.manager=R_grandManager.id
+       AND (R_grandMang.manager IS NOT NULL)
+       AND (R_mang.manages IS NOT NULL)
+       AND (R_mang.id IS NOT NULL)
+       AND (R_grandManager.lastName IS NOT NULL)
+       AND (R_mang.manager IS NOT NULL)
+       AND (R_manager.lastName IS NOT NULL)
+       AND (R_grandMang.id IS NOT NULL)
+             ) AS R_opt1 ON R_emp.id=R_opt1.A_emp
+ WHERE R_emp.lastName IS NOT NULL
+   AND R_emp.id IS NOT NULL
+""").get
+    assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false) === sqlSelect)
+  }
+
+  test("transform nestOpt") {
+    val sparqlParser = Sparql()
+    val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
+PREFIX emplP: <http://hr.example/DB/Employee#>
+PREFIX mangP: <http://hr.example/DB/Manage#>
+
+SELECT ?empName ?managName ?grandManagName
+ WHERE {          ?emp            emplP:lastName   ?empName
+       OPTIONAL { ?mang           mangP:manages    ?emp .
+                  ?mang           mangP:manager    ?manager .
+                  ?manager        emplP:lastName   ?managName
+         OPTIONAL { ?grandMang    mangP:manages    ?manager .
+                    ?grandMang    mangP:manager    ?grandManager .
+                    ?grandManager emplP:lastName   ?grandManagName } }
+       }
+""").get
+    val sqlParser = Sql()
+    val sqlSelect = sqlParser.parseAll(sqlParser.select, """
+SELECT R_emp.lastName AS A_empName, R_opt1.A_managName AS A_managName, R_opt1.A_grandManagName AS A_grandManagName
+       FROM Employee AS R_emp
+            LEFT OUTER JOIN (
+    SELECT R_opt2.A_grandManagName AS A_grandManagName, R_manager.lastName AS A_managName, R_mang.manages AS A_emp, R_mang.manager AS A_manager,
+           R_mang.id AS A_mang, R_opt2.A_grandMang AS A_grandMang, R_opt2.A_grandManager AS A_grandManager
+           FROM Manage AS R_mang
+                INNER JOIN Employee AS R_manager
+                LEFT OUTER JOIN (
+        SELECT R_grandManager.lastName AS A_grandManagName, R_grandMang.manages AS A_manager,
+               R_grandMang.id AS A_grandMang, R_grandMang.manager AS A_grandManager
+               FROM Manage AS R_grandMang
+                    INNER JOIN Employee AS R_grandManager
+         WHERE R_grandMang.manager=R_grandManager.id AND R_grandMang.manages IS NOT NULL AND R_grandMang.manager IS NOT NULL
+           AND R_grandManager.lastName IS NOT NULL AND R_grandMang.id IS NOT NULL
+                 ) AS R_opt2 ON R_mang.manager=R_opt2.A_manager
+          WHERE R_mang.manager=R_manager.id
+            AND R_mang.manages IS NOT NULL AND R_mang.id IS NOT NULL AND R_mang.manager IS NOT NULL AND R_manager.lastName IS NOT NULL
+             ) AS R_opt1 ON R_emp.id=R_opt1.A_emp
+ WHERE R_emp.lastName IS NOT NULL AND R_emp.id IS NOT NULL
+""").get
+    assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false) === sqlSelect)
+  }
 }
