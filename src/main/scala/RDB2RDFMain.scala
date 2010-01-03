@@ -13,7 +13,7 @@ case class Int(relaliasattr:RelAliasAttribute) extends Binding
 case class Enum(relaliasattr:RelAliasAttribute) extends Binding
 
 object RDB2RDF {
-  case class R2RState(joins:Set[Join], varmap:Map[Var, SQL2RDFValueMapper], exprs:Set[Expression])
+  case class R2RState(joins:AddOrderedSet[Join], varmap:Map[Var, SQL2RDFValueMapper], exprs:Set[Expression])
 
   sealed abstract class SQL2RDFValueMapper(relaliasattr:RelAliasAttribute, disjoints:Set[RelationalExpressionNe])
   case class IntMapper(relaliasattr:RelAliasAttribute, disjoints:Set[RelationalExpressionNe]) extends SQL2RDFValueMapper(relaliasattr, disjoints)
@@ -298,7 +298,7 @@ object RDB2RDF {
 	val unionAlias = RelAlias(Name("R_union" + state.joins.size))
 	val initDisjoints:Set[Select] = Set()
 	val emptyState = R2RState(
-	  Set[Join](), 
+	  AddOrderedSet[Join](), 
 	  Map[Var, SQL2RDFValueMapper](), 
 	  Set[Expression]()
 	)
@@ -376,7 +376,7 @@ object RDB2RDF {
       	val leftJoinAlias = RelAlias(Name("R_opt" + state.joins.size))
       	val initDisjoints:Set[Select] = Set()
       	val emptyState = R2RState(
-      	  Set[Join](), 
+      	  AddOrderedSet[Join](), 
       	  Map[Var, SQL2RDFValueMapper](), 
       	  Set[Expression]()
       	)
@@ -448,7 +448,7 @@ object RDB2RDF {
 
     /* Create an object to hold our compilation state. */
     val initState = R2RState(
-      Set[Join](), 
+      AddOrderedSet[Join](), 
       Map[Var, SQL2RDFValueMapper](), 
       Set[Expression]()
     )

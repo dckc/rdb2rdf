@@ -62,7 +62,7 @@ SELECT R_emp.lastName AS A_empName, R_manager.lastName AS A_managName
 					     NamedAttribute(RelAliasAttribute(RelAlias(Name("R_manager")),
 									      Attribute(Name("lastName"))),
 							    AttrAlias(Name("A_managName"))))),
-			  TableList(Set(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))),
+			  TableList(AddOrderedSet(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))),
 					InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_manager")))))),
 			  Some(ExprConjunction(Set(
 			    RelationalExpressionEq(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id"))),
@@ -82,7 +82,7 @@ SELECT R_emp.lastName AS A_empName
     val expected = Select(AttributeList(Set(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_emp")),
 									      Attribute(Name("lastName"))),
 							    AttrAlias(Name("A_empName"))))),
-			  TableList(Set(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))))),
+			  TableList(AddOrderedSet(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))))),
 			  Some(ExprConjunction(Set(RelationalExpressionEq(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("manager"))),
 							      RValueTyped(SQLDatatype.INTEGER,Name("18"))),
 					  RelationalExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("lastName"))))))))
@@ -100,7 +100,7 @@ WHERE R_emp.manager=R_manager.id AND R_manager.lastName="Johnson" AND R_emp.last
     val expected = Select(AttributeList(Set(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_emp")),
 									      Attribute(Name("lastName"))),
 							    AttrAlias(Name("A_empName"))))),
-			  TableList(Set(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))),
+			  TableList(AddOrderedSet(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))),
 					InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_manager")))))),
 			  Some(ExprConjunction(Set(RelationalExpressionEq(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("manager"))),
 							      RValueAttr(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id"))))),
@@ -129,7 +129,7 @@ SELECT R_emp.lastName AS A_empName, R_grandManager.lastName AS A_grandManagName
 							   AttrAlias(Name("A_empName"))),
 					    NamedAttribute(RelAliasAttribute(RelAlias(Name("R_grandManager")),Attribute(Name("lastName"))),
 							   AttrAlias(Name("A_grandManagName"))))),
-			  TableList(Set(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))),
+			  TableList(AddOrderedSet(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))),
 					InnerJoin(AliasedResource(Relation(Name("Manage")),RelAlias(Name("R_lower")))),
 					InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_manager")))),
 					InnerJoin(AliasedResource(Relation(Name("Manage")),RelAlias(Name("R_upper")))),
@@ -171,13 +171,13 @@ SELECT R_union1.name AS A_name
 """
     val expected = Select(AttributeList(Set(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_union1")), Attribute(Name("name"))),
 							   AttrAlias(Name("A_name"))))),
-			  TableList(Set(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_who")))),
+			  TableList(AddOrderedSet(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_who")))),
 					InnerJoin(AliasedResource(Subselect(Union(Set(
 					  Select(AttributeList(Set(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_manager")), Attribute(Name("lastName"))),
 										  AttrAlias(Name("A_name"))), 
 								   NamedAttribute(RelAliasAttribute(RelAlias(Name("R_above")), Attribute(Name("manages"))),
 										  AttrAlias(Name("A_who"))))),
-						 TableList(Set(
+						 TableList(AddOrderedSet(
 						   InnerJoin(AliasedResource(Relation(Name("Manage")),RelAlias(Name("R_above")))),
 						   InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_manager"))))
 						 )), 
@@ -188,7 +188,7 @@ SELECT R_union1.name AS A_name
 										  AttrAlias(Name("A_name"))), 
 								   NamedAttribute(RelAliasAttribute(RelAlias(Name("R_below")), Attribute(Name("manager"))),
 										  AttrAlias(Name("A_who"))))),
-						 TableList(Set(
+						 TableList(AddOrderedSet(
 						   InnerJoin(AliasedResource(Relation(Name("Manage")),RelAlias(Name("R_below")))),
 						   InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_managed"))))
 						 )), 
@@ -215,7 +215,7 @@ SELECT R_above.manages AS A_who, NULL AS A_bday
 							    AttrAlias(Name("A_who"))),
 					     NamedAttribute(ConstNULL(),
 							    AttrAlias(Name("A_bday"))))),
-			  TableList(Set(InnerJoin(AliasedResource(Relation(Name("Manage")),RelAlias(Name("R_above")))))),
+			  TableList(AddOrderedSet(InnerJoin(AliasedResource(Relation(Name("Manage")),RelAlias(Name("R_above")))))),
 			  Some(
 			    RelationalExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_above")),Attribute(Name("id"))))))
     assert(expected === (a.parseAll(a.select, e).get))
@@ -233,7 +233,7 @@ SELECT R_above.manages AS A_who, NULL AS A_bday
 							    AttrAlias(Name("A_who"))),
 					     NamedAttribute(ConstNULL(),
 							    AttrAlias(Name("A_bday"))))),
-			  TableList(Set(InnerJoin(AliasedResource(Relation(Name("Manage")),RelAlias(Name("R_above")))))),
+			  TableList(AddOrderedSet(InnerJoin(AliasedResource(Relation(Name("Manage")),RelAlias(Name("R_above")))))),
 			  Some(
 			    ExprDisjunction(Set(
 			      RelationalExpressionNotNull(RelAliasAttribute(RelAlias(Name("R_above")),Attribute(Name("id")))),
@@ -260,7 +260,7 @@ SELECT R_emp.lastName AS A_empName, R_mang.manageName AS A_manageName
 					     NamedAttribute(RelAliasAttribute(RelAlias(Name("R_mang")),
 									      Attribute(Name("manageName"))),
 							    AttrAlias(Name("A_manageName"))))),
-			  TableList(Set(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))),
+			  TableList(AddOrderedSet(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))),
 					LeftOuterJoin(AliasedResource(Relation(Name("Manage")),RelAlias(Name("R_mang"))),
 						      RelationalExpressionEq(RelAliasAttribute(RelAlias(Name("R_mang")),Attribute(Name("emp"))),
 									     RValueAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("id"))))
@@ -286,11 +286,11 @@ SELECT R_emp.lastName AS A_empName, R_mang.manageName AS A_manageName
     val expected = 
       Select(AttributeList(Set(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("lastName"))),AttrAlias(Name("A_empName"))),
 			       NamedAttribute(RelAliasAttribute(RelAlias(Name("R_mang")),Attribute(Name("manageName"))),AttrAlias(Name("A_manageName"))))),
-	     TableList(Set(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))),
+	     TableList(AddOrderedSet(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))),
 			   LeftOuterJoin(AliasedResource(
 			     Subselect(Select(AttributeList(Set(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("lastName"))),AttrAlias(Name("A_empName"))),
 						      NamedAttribute(RelAliasAttribute(RelAlias(Name("R_mang")),Attribute(Name("manageName"))),AttrAlias(Name("A_manageName"))))),
-				    TableList(Set(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))))),
+				    TableList(AddOrderedSet(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))))),
 				    None)),
 			     RelAlias(Name("R_mang"))),
 					 RelationalExpressionEq(RelAliasAttribute(RelAlias(Name("R_mang")),Attribute(Name("emp"))),

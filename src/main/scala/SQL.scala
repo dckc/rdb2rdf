@@ -62,7 +62,7 @@ case class AttrAlias(n:Name) {
 case class RelAlias(n:Name) {
   override def toString = n.s /* "'" + n.s + "'" */
 }
-case class TableList(joins:Set[Join]) {
+case class TableList(joins:AddOrderedSet[Join]) {
   override def toString = "  FROM " + joins.foldLeft(("", 0))(
     (pair, entry) => (pair._1 + {
       if (pair._2 == 0) entry.toString.substring(19) // !!! shameless!
@@ -180,7 +180,7 @@ case class Sql() extends JavaTokenParsers {
     """[a-zA-Z_]\w*""".r ^^ { x => RelAlias(Name(x)) }
 
   def tablelist:Parser[TableList] =
-    aliasedjoin ~ rep(innerORouter) ^^ { case aj~l => TableList(Set(InnerJoin(aj)) ++ l.toSet) }
+    aliasedjoin ~ rep(innerORouter) ^^ { case aj~l => TableList(AddOrderedSet(InnerJoin(aj) :: l)) }
 
   def innerORouter:Parser[Join] = (
       "INNER" ~ "JOIN" ~ aliasedjoin ^^ { case "INNER"~"JOIN"~a => InnerJoin(a) }
