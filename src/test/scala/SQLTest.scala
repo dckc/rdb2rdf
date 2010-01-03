@@ -225,18 +225,18 @@ SELECT R_above.manages AS A_who, NULL AS A_bday
     val a = Sql()
     val QuotedBaseURI = "\"http://hr.example/DB/\""
     val e = """
-SELECT CONCAT(""" + QuotedBaseURI + """, "Employee", "/", "id", ".", R_emp1.id, "#record") AS A_emp1
-       FROM Employee AS R_emp1
+SELECT CONCAT(""" + QuotedBaseURI + """, "Employee", "/", "id", ".", R_emp.id, "#record") AS A_emp
+       FROM Employee AS R_emp
 """
     val expected = Select(AttributeList(Set(NamedAttribute(Concat(List(PrimaryExpressionTyped(SQLDatatype("String"),Name("http://hr.example/DB/")),
 								       PrimaryExpressionTyped(SQLDatatype("String"),Name("Employee")),
 								       PrimaryExpressionTyped(SQLDatatype("String"),Name("/")),
 								       PrimaryExpressionTyped(SQLDatatype("String"),Name("id")),
 								       PrimaryExpressionTyped(SQLDatatype("String"),Name(".")),
-								       PrimaryExpressionAttr(RelAliasAttribute(RelAlias(Name("R_emp1")),Attribute(Name("id")))),
+								       PrimaryExpressionAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("id")))),
 								       PrimaryExpressionTyped(SQLDatatype("String"),Name("#record")))),
-							    AttrAlias(Name("A_emp1"))))),
-			  TableList(Set(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp1")))))),
+							    AttrAlias(Name("A_emp"))))),
+			  TableList(Set(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))))),
 			  None)
     assert(expected === (a.parseAll(a.select, e).get))
   }

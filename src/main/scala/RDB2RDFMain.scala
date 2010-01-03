@@ -248,6 +248,33 @@ object RDB2RDF {
     }
   }
 
+  def varToConcat(varmap:Map[Var, SQL2RDFValueMapper], vvar:Var, stem:StemURI):Expression = {
+    varmap(vvar) match {
+      case IntMapper(relalias, _) => PrimaryExpressionAttr(relalias)
+      case StringMapper(relalias, _) => 
+	Concat(List(PrimaryExpressionTyped(SQLDatatype("String"),Name("\\\"")),
+		    PrimaryExpressionAttr(relalias),
+		    PrimaryExpressionTyped(SQLDatatype("String"),Name("\\\"^^<http://www.w3.org/2001/XMLSchema#string>"))))
+      case DateMapper(relalias, _) => PrimaryExpressionAttr(relalias)
+      case RDFNoder(relation, relalias, _) => 
+	Concat(List(PrimaryExpressionTyped(SQLDatatype("String"),Name(stem.s)),
+		    PrimaryExpressionTyped(SQLDatatype("String"),relation.n),
+		    PrimaryExpressionTyped(SQLDatatype("String"),Name("/")),
+		    PrimaryExpressionTyped(SQLDatatype("String"),relalias.attribute.n),
+		    PrimaryExpressionTyped(SQLDatatype("String"),Name(".")),
+		    PrimaryExpressionAttr(relalias),
+		    PrimaryExpressionTyped(SQLDatatype("String"),Name("#record"))))
+      case RDFBNoder(relation, relalias, _) => 
+	Concat(List(PrimaryExpressionTyped(SQLDatatype("String"),Name("_:")),
+		    PrimaryExpressionTyped(SQLDatatype("String"),relation.n),
+		    PrimaryExpressionTyped(SQLDatatype("String"),Name(".")),
+		    PrimaryExpressionTyped(SQLDatatype("String"),relalias.attribute.n),
+		    PrimaryExpressionTyped(SQLDatatype("String"),Name(".")),
+		    PrimaryExpressionAttr(relalias)))
+    }
+    
+  }
+
   def filter2expr(varmap:Map[Var, SQL2RDFValueMapper], f:SparqlPrimaryExpression):RelationalExpression = {
     val (lTerm:Term, rTerm:Term, sqlexpr) = f match { // sqlexpr::((RelAliasAttribute,PrimaryExpressionAttr)=>RelationalExpression)
       case SparqlPrimaryExpressionEq(l, r) => (l.term, r.term, RelationalExpressionEq(_,_))
@@ -416,7 +443,6 @@ object RDB2RDF {
       	      else
       		Set(constraint)
       	    }
-	    println("" + v + " begets " + newMap + " and " + newConstraints)
       	    R2RState(myState.joins, myState.varmap ++ newMap, myState.exprs ++ newConstraints)
       	  } else {
       	    /* This variable is new to the outer context. */
@@ -443,7 +469,7 @@ object RDB2RDF {
     }
   }
 
-  def apply (db:DatabaseDesc, sparql:SparqlSelect, stem:StemURI, pk:PrimaryKey, enforeForeignKeys:Boolean) : Select = {
+  def apply (db:DatabaseDesc, sparql:SparqlSelect, stem:StemURI, pk:PrimaryKey, enforeForeignKeys:Boolean, concat:Boolean) : Select = {
     val SparqlSelect(attrs, triples) = sparql
 
     /* Create an object to hold our compilation state. */
@@ -458,7 +484,11 @@ object RDB2RDF {
     /* Select the attributes corresponding to the variables
      * in the SPARQL SELECT.  */
     val attrlist:Set[NamedAttribute] = attrs.attributelist.foldLeft(Set[NamedAttribute]())((attrs, vvar) => 
-      attrs ++ Set(NamedAttribute(varToAttribute(r2rState.varmap, vvar), AttrAlias(Name("A_" + vvar.s)))))
+      attrs + NamedAttribute({
+	if (concat) varToConcat(r2rState.varmap, vvar, stem)
+	else varToAttribute(r2rState.varmap, vvar)
+      } , AttrAlias(Name("A_" + vvar.s))
+      ))
 
     /* Construct the generated query as an abstract syntax. */
     Select(

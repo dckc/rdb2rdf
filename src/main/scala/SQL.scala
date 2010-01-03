@@ -5,7 +5,7 @@ import scala.util.parsing.combinator._
 object SQLParsers extends RegexParsers {
 
   val int = """[0-9]+""".r
-  val chars = "\"[^\"]*\"".r
+  val chars = "\"([^\"\\\\\n\r]|\\\\[tbnrf\\\"'])*\"".r
 }
 
 import SQLParsers._
@@ -42,16 +42,6 @@ sealed abstract class RelAliasAttributeORExpression
 case class RelAliasAttribute(relalias:RelAlias, attribute:Attribute) extends RelAliasAttributeORExpression {
   override def toString = relalias + "." + attribute
 }
-// sealed abstract class Const extends RelAliasAttributeORPrimaryExpression
-// case class ConstNULL() extends Const {
-//   override def toString = "NULL"
-// }
-// case class ConstInt(i:String) extends Const {
-//   override def toString = "" + i
-// }
-// case class ConstChars(s:String) extends Const {
-//   override def toString = "\"" + s + "\""
-// }
 
 case class Attribute(n:Name) {
   override def toString = n.s /* "'" + n.s + "'" */

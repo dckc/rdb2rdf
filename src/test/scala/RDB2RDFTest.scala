@@ -45,7 +45,46 @@ SELECT R_emp.id AS A_emp
             INNER JOIN Employee AS R_id18
  WHERE R_id18.id=R_emp.manager AND R_id18.id=18 AND R_emp.id IS NOT NULL
 """).get
-    assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), true) === sqlSelect)
+    assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), true, false) === sqlSelect)
+    true
+  }
+
+  test("SELECT <x> { ?sf <p> <x>} (in-SQL Nodizer)") {
+    val sparqlParser = Sparql()
+    val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
+PREFIX empP : <http://hr.example/DB/Employee#>
+SELECT ?emp {
+?emp  empP:manager    <http://hr.example/DB/Employee/id.18#record>
+}
+""").get
+    val sqlParser = Sql()
+    val StemUrlString = "\"http://hr.example/DB/\""
+    val sqlSelect = sqlParser.parseAll(sqlParser.select, """
+SELECT CONCAT(""" + StemUrlString + """, "Employee", "/", "id", ".", R_emp.id, "#record") AS A_emp
+       FROM Employee AS R_emp
+            INNER JOIN Employee AS R_id18
+ WHERE R_id18.id=R_emp.manager AND R_id18.id=18 AND R_emp.id IS NOT NULL
+""").get
+    assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), true, true) === sqlSelect)
+    true
+  }
+
+  test("SELECT <x> { ?sf <p> \"asdf\"} (in-SQL Nodizer)") {
+    val sparqlParser = Sparql()
+    val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
+PREFIX empP : <http://hr.example/DB/Employee#>
+SELECT ?name {
+?emp  empP:lastName  ?name
+}
+""").get
+    val sqlParser = Sql()
+    val StemUrlString = "\"http://hr.example/DB/\""
+    val sqlSelect = sqlParser.parseAll(sqlParser.select, """
+SELECT CONCAT("\"", R_emp.lastName, "\"^^<http://www.w3.org/2001/XMLSchema#string>") AS A_name
+       FROM Employee AS R_emp
+ WHERE R_emp.id IS NOT NULL AND R_emp.lastName IS NOT NULL
+""").get
+    assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), true, true) === sqlSelect)
     true
   }
 
@@ -64,7 +103,7 @@ SELECT R_manager.id AS A_manager
             INNER JOIN Employee AS R_manager
  WHERE R_manager.id=R_id18.manager AND R_id18.id=18 AND R_manager.id IS NOT NULL
 """).get
-    assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), true) === sqlSelect)
+    assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), true, false) === sqlSelect)
     true
   }
 
@@ -86,7 +125,7 @@ SELECT R_emp.id AS A_emp
             INNER JOIN Employee AS R_18
  WHERE R_18.id=R_emp.manager AND R_18.id=18 AND R_emp.id IS NOT NULL
 """).get
-    assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), true) === sqlSelect)
+    assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), true, false) === sqlSelect)
     true
   }
 
@@ -106,7 +145,7 @@ SELECT R_emp1.id AS A_emp1, R_emp2.id AS A_emp2, R_emp1.lastName AS A_sharedName
             INNER JOIN Employee AS R_emp2
  WHERE R_emp1.lastName=R_emp2.lastName AND R_emp1.id IS NOT NULL AND R_emp1.lastName IS NOT NULL AND R_emp2.id IS NOT NULL
 """).get
-    assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), true) === sqlSelect)
+    assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), true, false) === sqlSelect)
     true
   }
 
@@ -129,7 +168,7 @@ SELECT R_emp.lastName AS A_empName, R_manager.lastName AS A_manageName
  AND R_emp.id IS NOT NULL
  AND R_manager.id IS NOT NULL
 """).get
-    assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), true) === sqlSelect)
+    assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), true, false) === sqlSelect)
   }
 
   test("transform tup1 no-enforce") {
@@ -148,7 +187,7 @@ SELECT R_emp.lastName AS A_empName
  WHERE R_emp.manager=18 AND R_emp.lastName IS NOT NULL
  AND R_emp.id IS NOT NULL
 """).get
-    assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false) === sqlSelect)
+    assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false, false) === sqlSelect)
   }
 
   test("transform tup1 enforce") {
@@ -168,7 +207,7 @@ SELECT R_emp.lastName AS A_empName
  WHERE R_id18.id=R_emp.manager AND R_id18.id=18 AND R_emp.lastName IS NOT NULL
  AND R_emp.id IS NOT NULL
 """).get
-    assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), true) === sqlSelect)
+    assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), true, false) === sqlSelect)
   }
 
 
@@ -192,7 +231,7 @@ WHERE R_manager.id=R_emp.manager AND R_manager.lastName="Johnson" AND R_emp.last
  AND R_emp.id IS NOT NULL
  AND R_manager.id IS NOT NULL
 """).get
-    assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), true) === sqlSelect)
+    assert(RDB2RDF(db, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), true, false) === sqlSelect)
   }
 
   test("transform filter1") {
@@ -231,7 +270,7 @@ SELECT R_emp.lastName AS A_empName, R_grandManager.lastName AS A_grandManagName
  AND R_manager.birthday IS NOT NULL
  AND R_grandManager.birthday IS NOT NULL
 """).get
-    assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), true) === sqlSelect)
+    assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), true, false) === sqlSelect)
   }
 
   test("transform disj1") {
@@ -272,7 +311,7 @@ SELECT R_union1.A_name AS A_name
        (R_union1._DISJOINT_!=0 OR R_who.id=R_union1.A_who) AND
        (R_union1._DISJOINT_!=1 OR R_who.id=R_union1.A_who)
 """).get
-    assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false) === sqlSelect)
+    assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false, false) === sqlSelect)
   }
 
   test("transform assymDisj1") {
@@ -318,7 +357,7 @@ SELECT R_union0.A_name AS A_name
        R_union0.A_who IS NOT NULL AND
        R_union0.A_bday IS NOT NULL
 """).get
-    assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false) === sqlSelect)
+    assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false, false) === sqlSelect)
   }
 
   test("transform assymDisj1 reversed") {
@@ -366,7 +405,7 @@ SELECT R_union1.A_name AS A_name
        R_who.id IS NOT NULL AND
        R_who.birthday IS NOT NULL
 """).get
-    assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false) === sqlSelect)
+    assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false, false) === sqlSelect)
   }
 
   test("transform assymDisj1 interspersed") {
@@ -414,7 +453,7 @@ SELECT R_union1.A_name AS A_name
        R_who.id IS NOT NULL AND
        R_union1.A_bday IS NOT NULL
 """).get
-    assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false) === sqlSelect)
+    assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false, false) === sqlSelect)
   }
 
   test("transform optJoin1") {
@@ -458,7 +497,7 @@ SELECT R_emp.lastName AS A_empName, R_opt1.A_managName AS A_managName, R_opt1.A_
  WHERE R_emp.lastName IS NOT NULL
    AND R_emp.id IS NOT NULL
 """).get
-    assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false) === sqlSelect)
+    assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false, false) === sqlSelect)
   }
 
   test("transform nestOpt") {
@@ -499,6 +538,6 @@ SELECT R_emp.lastName AS A_empName, R_opt1.A_managName AS A_managName, R_opt1.A_
              ) AS R_opt1 ON R_emp.id=R_opt1.A_emp
  WHERE R_emp.lastName IS NOT NULL AND R_emp.id IS NOT NULL
 """).get
-    assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false) === sqlSelect)
+    assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false, false) === sqlSelect)
   }
 }
