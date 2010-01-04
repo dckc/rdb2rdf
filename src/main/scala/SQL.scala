@@ -89,6 +89,9 @@ case class RelationalExpressionNe(l:Expression, r:Expression) extends Relational
 case class RelationalExpressionLt(l:Expression, r:Expression) extends RelationalExpression {
   override def toString = l + "<" + r
 }
+case class RelationalExpressionNull(l:Expression) extends RelationalExpression { // Expression?
+  override def toString = l + " IS NULL"
+}
 case class RelationalExpressionNotNull(l:Expression) extends RelationalExpression { // Expression?
   override def toString = l + " IS NOT NULL"
 }
@@ -135,7 +138,27 @@ case class Sql() extends JavaTokenParsers {
 
   def select:Parser[Select] =
     "SELECT" ~ attributelist ~ "FROM" ~ tablelist ~ opt(where) ^^
-    { case "SELECT" ~ attributes ~ "FROM" ~ tables ~ whereexpr => Select(attributes, tables, whereexpr) }
+    {
+      case "SELECT" ~ attributes ~ "FROM" ~ tablesANDons ~ whereexpr => {
+	val t:Set[Expression] = tablesANDons._2
+	val onConjoints = tablesANDons._2.foldLeft(Set[Expression]())((set, ent) =>
+	  ent match {
+	    case ExprConjunction(l) => l
+	    case _ => Set(ent)
+	  })
+	val conjoints = whereexpr match {
+	  case Some(ExprConjunction(l)) => onConjoints ++ l
+	  case Some(x) => onConjoints + x
+	  case _ => onConjoints
+	}
+	val expr:Option[Expression] = conjoints.size match {
+	  case 0 => None
+	  case 1 => Some(conjoints.toList(0))
+	  case _ => Some(ExprConjunction(conjoints))
+	}
+	Select(attributes, tablesANDons._1, expr)
+      }
+    }
 
   def where:Parser[Expression] =
     "WHERE" ~ expression ^^ { case "WHERE" ~ expression => expression }
@@ -171,12 +194,15 @@ case class Sql() extends JavaTokenParsers {
   def relalias:Parser[RelAlias] =
     """[a-zA-Z_]\w*""".r ^^ { x => RelAlias(Name(x)) }
 
-  def tablelist:Parser[TableList] =
-    aliasedjoin ~ rep(innerORouter) ^^ { case aj~l => TableList(AddOrderedSet(InnerJoin(aj) :: l)) }
+  def tablelist:Parser[(TableList, Set[Expression])] =
+    aliasedjoin ~ rep(innerORouter) ^^ { case aj~l => (TableList(AddOrderedSet(InnerJoin(aj) :: l.map((one) => one._1))), 
+						       l.foldLeft(Set[Expression]())((all, one) => all ++ one._2)) }
 
-  def innerORouter:Parser[Join] = (
-      "INNER" ~ "JOIN" ~ aliasedjoin ^^ { case "INNER"~"JOIN"~a => InnerJoin(a) }
-    | "LEFT" ~ "OUTER" ~ "JOIN" ~ aliasedjoin ~ "ON" ~ expression ^^ { case l~o~j~alijoin~on~expr => LeftOuterJoin(alijoin, expr) }
+  def innerORouter:Parser[(Join, Set[Expression])] = (
+      "INNER" ~ "JOIN" ~ aliasedjoin ~ opt("ON" ~ expression) ^^
+      { case "INNER"~"JOIN"~a~o => (InnerJoin(a), { if (o.isDefined) Set(o.get._2) else Set[Expression]() } ) }
+    | "LEFT" ~ "OUTER" ~ "JOIN" ~ aliasedjoin ~ "ON" ~ expression ^^
+      { case l~o~j~alijoin~on~expr => (LeftOuterJoin(alijoin, expr), Set[Expression]()) }
   )
 
   def aliasedjoin:Parser[AliasedResource] =
@@ -201,6 +227,8 @@ case class Sql() extends JavaTokenParsers {
       { case primaryexpression ~ "!=" ~ rvalue => RelationalExpressionNe(primaryexpression, rvalue) }
     | primaryexpression ~ "<" ~ primaryexpression ^^
       { case primaryexpression ~ "<" ~ rvalue => RelationalExpressionLt(primaryexpression, rvalue) }
+    | primaryexpression ~ "IS" ~ "NULL" ^^
+      { case primaryexpression ~ "IS" ~ "NULL" => RelationalExpressionNull(primaryexpression) }
     | primaryexpression ~ "IS" ~ "NOT" ~ "NULL" ^^
       { case primaryexpression ~ "IS" ~ "NOT" ~ "NULL" => RelationalExpressionNotNull(primaryexpression) }
     | primaryexpression ^^

@@ -48,6 +48,45 @@ R_manager.id=R_emp.manager OR R_emp.lastName IS NOT NULL OR R_manager.lastName I
     assert(expected === (a.parseAll(a.expression, e).get))
   }
 
+  test("parse WHERE") {
+    // AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))
+    val a = Sql()
+    val e = """
+SELECT R_emp.lastName AS A_empName
+       FROM Employee AS R_emp
+            INNER JOIN Employee AS R_manager
+ WHERE R_manager.id=R_emp.manager
+"""
+    val expected = Select(AttributeList(Set(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_emp")),
+									     Attribute(Name("lastName"))),
+							   AttrAlias(Name("A_empName"))))),
+			  TableList(AddOrderedSet(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))),
+						  InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_manager")))))),
+			  Some(
+			    RelationalExpressionEq(PrimaryExpressionAttr(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id")))),
+						   PrimaryExpressionAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("manager")))))))
+    assert(expected === (a.parseAll(a.select, e).get))
+  }
+
+  test("parse INNER JOIN ON") {
+    // AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))
+    val a = Sql()
+    val e = """
+SELECT R_emp.lastName AS A_empName
+       FROM Employee AS R_emp
+            INNER JOIN Employee AS R_manager ON R_manager.id=R_emp.manager
+"""
+    val expected = Select(AttributeList(Set(NamedAttribute(RelAliasAttribute(RelAlias(Name("R_emp")),
+									     Attribute(Name("lastName"))),
+							   AttrAlias(Name("A_empName"))))),
+			  TableList(AddOrderedSet(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))),
+						  InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_manager")))))),
+			  Some(
+			    RelationalExpressionEq(PrimaryExpressionAttr(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id")))),
+						   PrimaryExpressionAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("manager")))))))
+    assert(expected === (a.parseAll(a.select, e).get))
+  }
+
   test("parse SQLbgp") {
     // AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))
     val a = Sql()
