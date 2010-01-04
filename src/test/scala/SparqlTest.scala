@@ -372,6 +372,30 @@ SELECT ?name
     assert(tps === a.parseAll(a.select, e).get)
   }
 
+  test("parse { BGP A BGP FILTER") {
+    val a = Sparql()
+    val e = """
+PREFIX emplP: <http://hr.example/DB/Employee#>
+
+SELECT ?emp1Name ?emp2Name ?emp3Name
+ WHERE { ?emp1     emplP:lastName   ?emp1Name
+         OPTIONAL { ?emp1     emplP:birthday   ?birthday }
+         ?emp2     emplP:lastName   ?emp2Name
+         OPTIONAL { ?emp2     emplP:birthday   ?birthday }
+         ?emp4     emplP:birthday   ?birthday
+         FILTER ( ?emp1Name < ?emp2Name && ?emp2Name < ?emp3Name && ?emp3Name < ?emp4Name) }
+"""
+    val tps =
+      Select(SparqlAttributeList(List(Var("emp1Name"), Var("emp2Name"), Var("emp3Name"))),
+       TableFilter(TableConjunction(List(TriplesBlock(List(TriplePattern(SVar(Var("emp1")), PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")), OVar(Var("emp1Name"))))),
+					 OptionalGraphPattern(TriplesBlock(List(TriplePattern(SVar(Var("emp1")), PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("birthday")), OVar(Var("birthday")))))),
+					 TriplesBlock(List(TriplePattern(SVar(Var("emp2")), PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")), OVar(Var("emp2Name"))))),
+					 OptionalGraphPattern(TriplesBlock(List(TriplePattern(SVar(Var("emp2")), PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("birthday")), OVar(Var("birthday")))))),
+					 TriplesBlock(List(TriplePattern(SVar(Var("emp4")),PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("birthday")),OVar(Var("birthday"))))))),
+		   Expression(List(PrimaryExpressionLt(SparqlTermExpression(TermVar(Var("emp1Name"))),SparqlTermExpression(TermVar(Var("emp2Name")))), PrimaryExpressionLt(SparqlTermExpression(TermVar(Var("emp2Name"))),SparqlTermExpression(TermVar(Var("emp3Name")))), PrimaryExpressionLt(SparqlTermExpression(TermVar(Var("emp3Name"))),SparqlTermExpression(TermVar(Var("emp4Name"))))))))
+    assert(tps === a.parseAll(a.select, e).get)
+  }
+
   test("decompose a predicate uri in stem, rel and attr") {
     val uri = "http://hr.example/our/favorite/DB/Employee#lastName"
     val puri:PUri = Sparql.parsePredicateURI(uri)

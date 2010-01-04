@@ -18,7 +18,9 @@ case class SparqlAttributeList(attributelist:List[Var])
 
 sealed abstract class GraphPattern
 case class TriplesBlock(triplepatterns:List[TriplePattern]) extends GraphPattern
-case class TableConjunction(gps:List[GraphPattern]) extends GraphPattern
+case class TableConjunction(gps:List[GraphPattern]) extends GraphPattern {
+  assert (!(gps exists (x => { x match { case TableConjunction(_) => true case _ => false } })))
+}
 case class TableDisjunction(gps:List[GraphPattern]) extends GraphPattern
 case class TableFilter(gp:GraphPattern, expr:Expression) extends GraphPattern
 case class OptionalGraphPattern(gp:GraphPattern) extends GraphPattern
@@ -104,27 +106,31 @@ case class Sparql() extends JavaTokenParsers {
 // case class OptionalGraphPattern(gp:GraphPattern) extends GraphPattern
 // case class GraphGraphPattern(gp:GraphPattern) extends GraphPattern
 
-	// println("groupgraphpattern: " + tbOPT + " " + gpntORf_tbOPT)
+	// println("groupgraphpattern(" + tbOPT + ", " + gpntORf_tbOPT + ")")
 	val init:Option[GraphPattern] = tbOPT
 	gpntORf_tbOPT.foldLeft(init)((gp, lentry) => {//println("match: " + (gp, lentry))
-(gp, lentry) match {
-	  case (Some(TriplesBlock(l)), ~(TableFilter(null, expr), None                 )) => Some(TableFilter(TriplesBlock(l), expr))
-	  case (None,                  ~(TableFilter(null, expr), Some(TriplesBlock(r)))) => Some(TableFilter(TriplesBlock(r), expr))
-	  case (Some(TriplesBlock(l)), ~(TableFilter(null, expr), Some(TriplesBlock(r)))) => Some(TableFilter(TriplesBlock(l ++ r), expr))
-	  case (Some(TableFilter(TriplesBlock(l), Expression(lexp))), ~(TableFilter(null, Expression(expr)), Some(TriplesBlock(r)))) => Some(TableFilter(TriplesBlock(l ++ r), Expression(lexp ++ expr)))
+	  // print("case (" + gp + ", " + lentry + ")")
+	  (gp, lentry) match {
+	    case (Some(TableFilter(TriplesBlock(l), Expression(lexp))), ~(TableFilter(null, Expression(expr)), Some(TriplesBlock(r)))) => Some(TableFilter(TriplesBlock(l ++ r), Expression(lexp ++ expr)))
+	    case (Some(TriplesBlock(l)), ~(TableFilter(null, expr), Some(TriplesBlock(r)))) => Some(TableFilter(TriplesBlock(l ++ r), expr))
+	    case (Some(gp             ), ~(TableFilter(null, expr), None                 )) => Some(TableFilter(gp, expr))
+	    case (None,                  ~(TableFilter(null, expr), Some(TriplesBlock(r)))) => Some(TableFilter(TriplesBlock(r), expr))
 
-	  // case (None,     ~(TableConjunction(gps), None    )) => TableConjunction(gps)
-	  // case (Some(gp), ~(TableConjunction(gps), None    )) => TableConjunction(List(List(gp) ++ gps))
-	  // case (None,     ~(TableConjunction(gps), Some(tb))) => TableConjunction(List(gps ++ List(tb)))
-	  // case (Some(gp), ~(TableConjunction(gps), Some(tb))) => TableConjunction(List(List(gp) ++ gps ++ List(tb)))
+	    // case (None,     ~(TableConjunction(gps), None    )) => TableConjunction(gps)
+	    // case (Some(gp), ~(TableConjunction(gps), None    )) => TableConjunction(List(List(gp) ++ gps))
+	    // case (None,     ~(TableConjunction(gps), Some(tb))) => TableConjunction(List(gps ++ List(tb)))
+	    // case (Some(gp), ~(TableConjunction(gps), Some(tb))) => TableConjunction(List(List(gp) ++ gps ++ List(tb)))
 
-	  case (None,     ~(x, None    )) => Some(x                                )
-	  case (Some(gp), ~(x, None    )) => Some(TableConjunction(List(gp, x    )))
-	  case (None,     ~(x, Some(tb))) => Some(TableConjunction(List(    x, tb)))
-	  case (Some(gp), ~(x, Some(tb))) => Some(TableConjunction(List(gp, x, tb)))
+	    case (None                    ,  ~(x, None    )) => Some(x                                     )
+	    case (Some(TableConjunction(l)), ~(x, None    )) => Some(TableConjunction(l ++ List(    x    )))
+	    case (Some(gp                 ), ~(x, None    )) => Some(TableConjunction(     List(gp, x    )))
+	    case (None                     , ~(x, Some(tb))) => Some(TableConjunction(     List(    x, tb)))
+	    case (Some(TableConjunction(l)), ~(x, Some(tb))) => Some(TableConjunction(l ++ List(    x, tb)))
+	    case (Some(gp                 ), ~(x, Some(tb))) => Some(TableConjunction(     List(gp, x, tb)))
 
-	  case x => error("found " + x)
-	}}).get
+	    case x => error("found " + x)
+	  }
+	}).get
       }
     }
   )
