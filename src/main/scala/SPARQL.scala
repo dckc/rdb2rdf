@@ -13,14 +13,14 @@ object MyParsers extends RegexParsers {
 
 import MyParsers._
 
-case class SparqlSelect(attrs:SparqlAttributeList, gp:GraphPattern)
+case class Select(attrs:SparqlAttributeList, gp:GraphPattern)
 case class SparqlAttributeList(attributelist:List[Var])
 
 sealed abstract class GraphPattern
 case class TriplesBlock(triplepatterns:List[TriplePattern]) extends GraphPattern
 case class TableConjunction(gps:List[GraphPattern]) extends GraphPattern
 case class TableDisjunction(gps:List[GraphPattern]) extends GraphPattern
-case class TableFilter(gp:GraphPattern, expr:SparqlExpression) extends GraphPattern
+case class TableFilter(gp:GraphPattern, expr:Expression) extends GraphPattern
 case class OptionalGraphPattern(gp:GraphPattern) extends GraphPattern
 case class GraphGraphPattern(gp:GraphPattern) extends GraphPattern
 
@@ -35,13 +35,13 @@ case class SVar(v:Var) extends S
 sealed abstract class O
 case class OUri(obj:ObjUri) extends O
 case class OVar(v:Var) extends O
-case class OLit(lit:SparqlLiteral) extends O
+case class OLit(lit:Literal) extends O
 
 sealed abstract class P
 case class PUri(stem:Stem, rel:Rel, attr:Attr) extends P
 case class PVar(v:Var) extends P
 
-case class SparqlLiteral(lit:RDFLiteral)
+case class Literal(lit:RDFLiteral)
 
 case class Stem(s:String)
 case class Attr(s:String)
@@ -49,38 +49,38 @@ case class Rel(s:String)
 
 case class Var(s:String)
 
-case class SparqlExpression(conjuncts:List[SparqlPrimaryExpression])
-sealed abstract class SparqlPrimaryExpression
-case class SparqlPrimaryExpressionEq(left:SparqlTermExpression, right:SparqlTermExpression) extends SparqlPrimaryExpression
-case class SparqlPrimaryExpressionLt(left:SparqlTermExpression, right:SparqlTermExpression) extends SparqlPrimaryExpression
+case class Expression(conjuncts:List[PrimaryExpression])
+sealed abstract class PrimaryExpression
+case class PrimaryExpressionEq(left:SparqlTermExpression, right:SparqlTermExpression) extends PrimaryExpression
+case class PrimaryExpressionLt(left:SparqlTermExpression, right:SparqlTermExpression) extends PrimaryExpression
 case class SparqlTermExpression(term:Term)
 
 sealed abstract class Term
 case class TermUri(obj:ObjUri) extends Term
 case class TermVar(v:Var) extends Term
-case class TermLit(lit:SparqlLiteral) extends Term
+case class TermLit(lit:Literal) extends Term
 
 
 case class Sparql() extends JavaTokenParsers {
 
-  def select:Parser[SparqlSelect] =
-    rep(prefixdecls) ~ "SELECT" ~ attributelist ~ opt("WHERE") ~ groupgraphpattern ^^ { case x~"SELECT"~a~w~gp => SparqlSelect(a, gp) }
+  def select:Parser[Select] =
+    rep(prefixdecls) ~ "SELECT" ~ attributelist ~ opt("WHERE") ~ groupgraphpattern ^^ { case x~"SELECT"~a~w~gp => Select(a, gp) }
 
   def prefixdecls:Parser[Unit] =
     "PREFIX" ~ name ~ ":" ~ qnameORuri ^^ { case "PREFIX"~pre~":"~u => prefixes += (pre -> u) }
 
-  def filter:Parser[SparqlExpression] =
+  def filter:Parser[Expression] =
     "FILTER" ~ "(" ~ expression ~ ")" ^^ { case "FILTER"~"("~expression~")" => expression }
 
-  def expression:Parser[SparqlExpression] = 
+  def expression:Parser[Expression] = 
     repsep(primaryexpression, "&&") ^^ 
-    { SparqlExpression(_) }
+    { Expression(_) }
 
-  def primaryexpression:Parser[SparqlPrimaryExpression] = (
+  def primaryexpression:Parser[PrimaryExpression] = (
       value ~ "=" ~ value ^^
-      { case left ~ "=" ~ right => SparqlPrimaryExpressionEq(left, right) }
+      { case left ~ "=" ~ right => PrimaryExpressionEq(left, right) }
     | value ~ "<" ~ value ^^
-      { case left ~ "<" ~ right => SparqlPrimaryExpressionLt(left, right) }
+      { case left ~ "<" ~ right => PrimaryExpressionLt(left, right) }
   )
 
   def value:Parser[SparqlTermExpression] = (
@@ -100,7 +100,7 @@ case class Sparql() extends JavaTokenParsers {
 // case class TriplesBlock(triplepatterns:List[TriplePattern]) extends GraphPattern
 // case class TableConjunction(gps:List[GraphPattern]) extends GraphPattern
 // case class TableDisjunction(gps:List[GraphPattern]) extends GraphPattern
-// case class TableFilter(gp:GraphPattern, expr:SparqlExpression) extends GraphPattern
+// case class TableFilter(gp:GraphPattern, expr:Expression) extends GraphPattern
 // case class OptionalGraphPattern(gp:GraphPattern) extends GraphPattern
 // case class GraphGraphPattern(gp:GraphPattern) extends GraphPattern
 
@@ -111,7 +111,7 @@ case class Sparql() extends JavaTokenParsers {
 	  case (Some(TriplesBlock(l)), ~(TableFilter(null, expr), None                 )) => Some(TableFilter(TriplesBlock(l), expr))
 	  case (None,                  ~(TableFilter(null, expr), Some(TriplesBlock(r)))) => Some(TableFilter(TriplesBlock(r), expr))
 	  case (Some(TriplesBlock(l)), ~(TableFilter(null, expr), Some(TriplesBlock(r)))) => Some(TableFilter(TriplesBlock(l ++ r), expr))
-	  case (Some(TableFilter(TriplesBlock(l), SparqlExpression(lexp))), ~(TableFilter(null, SparqlExpression(expr)), Some(TriplesBlock(r)))) => Some(TableFilter(TriplesBlock(l ++ r), SparqlExpression(lexp ++ expr)))
+	  case (Some(TableFilter(TriplesBlock(l), Expression(lexp))), ~(TableFilter(null, Expression(expr)), Some(TriplesBlock(r)))) => Some(TableFilter(TriplesBlock(l ++ r), Expression(lexp ++ expr)))
 
 	  // case (None,     ~(TableConjunction(gps), None    )) => TableConjunction(gps)
 	  // case (Some(gp), ~(TableConjunction(gps), None    )) => TableConjunction(List(List(gp) ++ gps))
@@ -161,10 +161,10 @@ case class Sparql() extends JavaTokenParsers {
     | name~":"~name ^^ { case prefix~":"~localName => prefixes(prefix) + localName }
   )
 
-  def literal:Parser[SparqlLiteral] =
+  def literal:Parser[Literal] =
       stringLiteral~"^^"~qnameORuri ^^
       {
-	case lit~"^^"~dt => SparqlLiteral(RDFLiteral(lit.substring(1,lit.size - 1), dt match {
+	case lit~"^^"~dt => Literal(RDFLiteral(lit.substring(1,lit.size - 1), dt match {
 	  case "http://www.w3.org/2001/XMLSchema#string" => RDFLiteral.StringDatatype
 	  case "http://www.w3.org/2001/XMLSchema#integer" => RDFLiteral.IntegerDatatype
 	  case "http://www.w3.org/2001/XMLSchema#date" => RDFLiteral.DateDatatype

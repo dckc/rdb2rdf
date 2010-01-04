@@ -96,7 +96,7 @@ sealed abstract class PrimaryExpression extends Expression
 case class PrimaryExpressionAttr(fqattribute:RelAliasAttribute) extends PrimaryExpression {
   override def toString = "" + fqattribute
 }
-case class PrimaryExpressionTyped(datatype:SQLDatatype, i:Name) extends PrimaryExpression {
+case class PrimaryExpressionTyped(datatype:Datatype, i:Name) extends PrimaryExpression {
   override def toString = i.s /* "'" + i.s + "'" */ /* + datatype */
 }
 case class ConstNULL() extends PrimaryExpression {
@@ -112,17 +112,17 @@ object Name {
   implicit def fromStringToName(s:String):Name = Name(s)
 }
 
-case class SQLDatatype(name:String) {
+case class Datatype(name:String) {
   override def toString = "/* " + name + " */"
 }
-object SQLDatatype {
-  val STRING = SQLDatatype("String")
-  val INTEGER = SQLDatatype("Int")
-  val DATE = SQLDatatype("Date")
+object Datatype {
+  val STRING = Datatype("String")
+  val INTEGER = Datatype("Int")
+  val DATE = Datatype("Date")
 }
 
 sealed abstract class ValueDescription
-case class Value(datatype:SQLDatatype) extends ValueDescription
+case class Value(datatype:Datatype) extends ValueDescription
 case class ForeignKey(rel:Relation, attr:Attribute) extends ValueDescription
 
 case class DatabaseDesc(relationdescs:Map[Relation,RelationDesc])
@@ -209,8 +209,8 @@ case class Sql() extends JavaTokenParsers {
 
   def primaryexpression:Parser[Expression] = (
       fqattribute ^^ { PrimaryExpressionAttr(_) }
-    | int ^^ { i => PrimaryExpressionTyped(SQLDatatype.INTEGER, Name(i)) }
-    | chars  ^^ { x => PrimaryExpressionTyped(SQLDatatype.STRING, Name(x.substring(1, x.size - 1))) }
+    | int ^^ { i => PrimaryExpressionTyped(Datatype.INTEGER, Name(i)) }
+    | chars  ^^ { x => PrimaryExpressionTyped(Datatype.STRING, Name(x.substring(1, x.size - 1))) }
     | "NULL" ^^ { case "NULL" => ConstNULL() }
     | "CONCAT" ~ "(" ~ rep1sep(expression, ",") ~ ")" ^^ { case "CONCAT"~"("~expressions~")" => Concat(expressions) }
     | "(" ~ expression ~ ")" ^^ { case "("~x~")" => x }

@@ -85,7 +85,7 @@ SELECT R_emp.lastName AS A_empName
 							    AttrAlias(Name("A_empName"))))),
 			  TableList(AddOrderedSet(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))))),
 			  Some(ExprConjunction(Set(RelationalExpressionEq(PrimaryExpressionAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("manager")))),
-									  PrimaryExpressionTyped(SQLDatatype.INTEGER,Name("18"))),
+									  PrimaryExpressionTyped(Datatype.INTEGER,Name("18"))),
 					  RelationalExpressionNotNull(PrimaryExpressionAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("lastName")))))))))
     assert(expected === (a.parseAll(a.select, e).get))
   }
@@ -106,7 +106,7 @@ WHERE R_emp.manager=R_manager.id AND R_manager.lastName="Johnson" AND R_emp.last
 			  Some(ExprConjunction(Set(RelationalExpressionEq(PrimaryExpressionAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("manager")))),
 									  PrimaryExpressionAttr(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("id"))))),
 					  RelationalExpressionEq(PrimaryExpressionAttr(RelAliasAttribute(RelAlias(Name("R_manager")),Attribute(Name("lastName")))),
-								 PrimaryExpressionTyped(SQLDatatype.STRING,Name("Johnson"))),
+								 PrimaryExpressionTyped(Datatype.STRING,Name("Johnson"))),
 					  RelationalExpressionNotNull(PrimaryExpressionAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("lastName")))))))))
     assert(expected === (a.parseAll(a.select, e).get))
   }
@@ -200,7 +200,7 @@ SELECT R_union1.name AS A_name
 			  Some(ExprConjunction(Set(RelationalExpressionEq(PrimaryExpressionAttr(RelAliasAttribute(RelAlias(Name("R_union1")),Attribute(Name("A_who")))),
 									  PrimaryExpressionAttr(RelAliasAttribute(RelAlias(Name("R_who")),Attribute(Name("id"))))),
 					 RelationalExpressionEq(PrimaryExpressionAttr(RelAliasAttribute(RelAlias(Name("R_who")),Attribute(Name("lastName")))),
-								PrimaryExpressionTyped(SQLDatatype.STRING,Name("Smith")))))))
+								PrimaryExpressionTyped(Datatype.STRING,Name("Smith")))))))
     assert(expected === (a.parseAll(a.select, e).get))
   }
 
@@ -229,13 +229,13 @@ SELECT R_above.manages AS A_who, NULL AS A_bday
 SELECT CONCAT(""" + QuotedBaseURI + """, "Employee", "/", "id", ".", R_emp.id, "#record") AS A_emp
        FROM Employee AS R_emp
 """
-    val expected = Select(AttributeList(Set(NamedAttribute(Concat(List(PrimaryExpressionTyped(SQLDatatype("String"),Name("http://hr.example/DB/")),
-								       PrimaryExpressionTyped(SQLDatatype("String"),Name("Employee")),
-								       PrimaryExpressionTyped(SQLDatatype("String"),Name("/")),
-								       PrimaryExpressionTyped(SQLDatatype("String"),Name("id")),
-								       PrimaryExpressionTyped(SQLDatatype("String"),Name(".")),
+    val expected = Select(AttributeList(Set(NamedAttribute(Concat(List(PrimaryExpressionTyped(Datatype("String"),Name("http://hr.example/DB/")),
+								       PrimaryExpressionTyped(Datatype("String"),Name("Employee")),
+								       PrimaryExpressionTyped(Datatype("String"),Name("/")),
+								       PrimaryExpressionTyped(Datatype("String"),Name("id")),
+								       PrimaryExpressionTyped(Datatype("String"),Name(".")),
 								       PrimaryExpressionAttr(RelAliasAttribute(RelAlias(Name("R_emp")),Attribute(Name("id")))),
-								       PrimaryExpressionTyped(SQLDatatype("String"),Name("#record")))),
+								       PrimaryExpressionTyped(Datatype("String"),Name("#record")))),
 							    AttrAlias(Name("A_emp"))))),
 			  TableList(AddOrderedSet(InnerJoin(AliasedResource(Relation(Name("Employee")),RelAlias(Name("R_emp")))))),
 			  None)
@@ -260,9 +260,9 @@ SELECT R_above.manages AS A_who, NULL AS A_bday
 			      RelationalExpressionNotNull(PrimaryExpressionAttr(RelAliasAttribute(RelAlias(Name("R_above")),Attribute(Name("id"))))),
 			      ExprConjunction(Set(
 				RelationalExpressionLt(PrimaryExpressionAttr(RelAliasAttribute(RelAlias(Name("R_above")),Attribute(Name("id")))),
-						       PrimaryExpressionTyped(SQLDatatype.INTEGER,Name("5"))),
+						       PrimaryExpressionTyped(Datatype.INTEGER,Name("5"))),
 				RelationalExpressionLt(PrimaryExpressionAttr(RelAliasAttribute(RelAlias(Name("R_above")),Attribute(Name("id")))),
-						       PrimaryExpressionTyped(SQLDatatype.INTEGER,Name("3")))
+						       PrimaryExpressionTyped(Datatype.INTEGER,Name("3")))
 			      ))))))
     assert(expected === (a.parseAll(a.select, e).get))
   }

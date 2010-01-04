@@ -11,7 +11,7 @@ class SparqlTest extends FunSuite {
     val e = """
 ?emp      <http://hr.example/DB/Employee#lastName>   "bob"^^<http://www.w3.org/2001/XMLSchema#string>
 """
-    val expected = TriplesBlock(List(TriplePattern(SVar(Var("emp")),PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")),OLit(SparqlLiteral(RDFLiteral("bob",Datatype(new URI("http://www.w3.org/2001/XMLSchema#string"))))))))
+    val expected = TriplesBlock(List(TriplePattern(SVar(Var("emp")),PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")),OLit(Literal(RDFLiteral("bob",Datatype(new URI("http://www.w3.org/2001/XMLSchema#string"))))))))
     assert(expected === (a.parseAll(a.triplesblock, e).get))
   }
 
@@ -20,7 +20,7 @@ class SparqlTest extends FunSuite {
     val e = """
 ?emp      <http://hr.example/DB/Employee#age>   "21"^^<http://www.w3.org/2001/XMLSchema#integer>
 """
-    val expected = TriplesBlock(List(TriplePattern(SVar(Var("emp")),PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("age")),OLit(SparqlLiteral(RDFLiteral("21",Datatype(new URI("http://www.w3.org/2001/XMLSchema#integer"))))))))
+    val expected = TriplesBlock(List(TriplePattern(SVar(Var("emp")),PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("age")),OLit(Literal(RDFLiteral("21",Datatype(new URI("http://www.w3.org/2001/XMLSchema#integer"))))))))
     assert(expected === (a.parseAll(a.triplesblock, e).get))
   }
 
@@ -59,23 +59,23 @@ class SparqlTest extends FunSuite {
     assert(expected === (a.parseAll(a.value, e).get))
   }
 
-  test("SparqlPrimaryExpressionEq") {
+  test("PrimaryExpressionEq") {
     val a = Sparql()
     val e = """
 ?emp<?emp
 """
-    val expected = SparqlPrimaryExpressionLt(SparqlTermExpression(TermVar(Var("emp"))), SparqlTermExpression(TermVar(Var("emp"))))
+    val expected = PrimaryExpressionLt(SparqlTermExpression(TermVar(Var("emp"))), SparqlTermExpression(TermVar(Var("emp"))))
     assert(expected === (a.parseAll(a.primaryexpression, e).get))
   }
 
-  test("SparqlExpression") {
+  test("Expression") {
     val a = Sparql()
     val e = """
 ?manBday < ?empBday && ?grandManBday < ?manBday
 """
-    val expected = SparqlExpression(List(
-      SparqlPrimaryExpressionLt(SparqlTermExpression(TermVar(Var("manBday"))), SparqlTermExpression(TermVar(Var("empBday")))), 
-      SparqlPrimaryExpressionLt(SparqlTermExpression(TermVar(Var("grandManBday"))), SparqlTermExpression(TermVar(Var("manBday"))))))
+    val expected = Expression(List(
+      PrimaryExpressionLt(SparqlTermExpression(TermVar(Var("manBday"))), SparqlTermExpression(TermVar(Var("empBday")))), 
+      PrimaryExpressionLt(SparqlTermExpression(TermVar(Var("grandManBday"))), SparqlTermExpression(TermVar(Var("manBday"))))))
     assert(expected === (a.parseAll(a.expression, e).get))
   }
 
@@ -84,9 +84,9 @@ class SparqlTest extends FunSuite {
     val e = """
 FILTER(?manBday < ?empBday && ?grandManBday < ?manBday)
 """
-    val expected = SparqlExpression(List(
-      SparqlPrimaryExpressionLt(SparqlTermExpression(TermVar(Var("manBday"))), SparqlTermExpression(TermVar(Var("empBday")))), 
-      SparqlPrimaryExpressionLt(SparqlTermExpression(TermVar(Var("grandManBday"))), SparqlTermExpression(TermVar(Var("manBday"))))))
+    val expected = Expression(List(
+      PrimaryExpressionLt(SparqlTermExpression(TermVar(Var("manBday"))), SparqlTermExpression(TermVar(Var("empBday")))), 
+      PrimaryExpressionLt(SparqlTermExpression(TermVar(Var("grandManBday"))), SparqlTermExpression(TermVar(Var("manBday"))))))
     assert(expected === (a.parseAll(a.filter, e).get))
   }
 
@@ -99,7 +99,7 @@ SELECT ?empName ?manageName {
 }
 """
     val tps =
-      SparqlSelect(
+      Select(
 	SparqlAttributeList(List(Var("empName"), Var("manageName"))),
 	TriplesBlock(
 	  List(
@@ -120,7 +120,7 @@ SELECT ?empName ?manageName
        }
 """
     val tps =
-      SparqlSelect(
+      Select(
 	SparqlAttributeList(List(Var("empName"), Var("manageName"))),
 	TriplesBlock(
 	  List(
@@ -140,7 +140,7 @@ FILTER(?manBday < ?empBday && ?grandManBday < ?manBday)
 }
 """
     val tps =
-      SparqlSelect(
+      Select(
 	SparqlAttributeList(List(Var("empName"), Var("manageName"))),
 	TableFilter(
 	  TriplesBlock(
@@ -149,10 +149,10 @@ FILTER(?manBday < ?empBday && ?grandManBday < ?manBday)
 		SVar(Var("emp")),
 		PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")),
 		OVar(Var("empName"))))),
-	  SparqlExpression(List(
-	    SparqlPrimaryExpressionLt(SparqlTermExpression(TermVar(Var("manBday"))),
+	  Expression(List(
+	    PrimaryExpressionLt(SparqlTermExpression(TermVar(Var("manBday"))),
 				      SparqlTermExpression(TermVar(Var("empBday")))), 
-	    SparqlPrimaryExpressionLt(SparqlTermExpression(TermVar(Var("grandManBday"))),
+	    PrimaryExpressionLt(SparqlTermExpression(TermVar(Var("grandManBday"))),
 				      SparqlTermExpression(TermVar(Var("manBday"))))))))
     assert(tps === a.parseAll(a.select, e).get)
   }
@@ -167,7 +167,7 @@ SELECT ?empName ?manageName {
 }
 """
     val tps =
-      SparqlSelect(
+      Select(
 	SparqlAttributeList(List(Var("empName"), Var("manageName"))),
 	TriplesBlock(
 	  List(
@@ -213,7 +213,7 @@ SELECT ?empName ?grandManagName {
 SELECT ?x { { ?x <http://hr.example/DB/Employee#manager> ?y} }
 """
     val tps =
-      SparqlSelect(
+      Select(
 	SparqlAttributeList(List(Var("x"))),
 	TriplesBlock(
 	  List(
@@ -230,7 +230,7 @@ SELECT ?x { { ?x <http://hr.example/DB/Employee#manager> ?y} }
 SELECT ?x { { ?x <http://hr.example/DB/Employee#manager> ?y} { ?x <http://hr.example/DB/Employee#manager> ?y} }
 """
     val tps =
-      SparqlSelect(
+      Select(
 	SparqlAttributeList(List(Var("x"))),
 	TableConjunction(List(
 	  TriplesBlock(
@@ -254,7 +254,7 @@ SELECT ?x { { ?x <http://hr.example/DB/Employee#manager> ?y} { ?x <http://hr.exa
 SELECT ?x { { ?x <http://hr.example/DB/Employee#manager> ?y} UNION { ?x <http://hr.example/DB/Employee#manager> ?y} }
 """
     val tps =
-      SparqlSelect(
+      Select(
 	SparqlAttributeList(List(Var("x"))),
 	TableDisjunction(List(
 	  TriplesBlock(
@@ -278,7 +278,7 @@ SELECT ?x { { ?x <http://hr.example/DB/Employee#manager> ?y} UNION { ?x <http://
 SELECT ?x { { ?x <http://hr.example/DB/Employee#manager> ?y} OPTIONAL { ?x <http://hr.example/DB/Employee#manager> ?y} }
 """
     val tps =
-      SparqlSelect(
+      Select(
 	SparqlAttributeList(List(Var("x"))),
 	TableConjunction(List(
 	  TriplesBlock(
@@ -303,7 +303,7 @@ SELECT ?x { { ?x <http://hr.example/DB/Employee#manager> ?y} OPTIONAL { ?x <http
 SELECT ?x { OPTIONAL { ?x <http://hr.example/DB/Employee#manager> ?y} }
 """
     val tps =
-      SparqlSelect(
+      Select(
 	SparqlAttributeList(List(Var("x"))),
 	OptionalGraphPattern(
 	  TriplesBlock(
@@ -329,7 +329,7 @@ SELECT ?name
            ?managed <http://hr.example/DB/Employee#lastName>  ?name } }
 """
     val tps =
-      SparqlSelect(
+      Select(
 	SparqlAttributeList(List(Var("name"))),
 	TableConjunction(List(
 	  TriplesBlock(
@@ -337,7 +337,7 @@ SELECT ?name
 	      TriplePattern(
 		SVar(Var("who")),
 		PUri(Stem("http://hr.example/DB"),Rel("Employee"),Attr("lastName")),
-		OLit(SparqlLiteral(RDFLiteral("Smith",Datatype(new URI("http://www.w3.org/2001/XMLSchema#string")))))))),
+		OLit(Literal(RDFLiteral("Smith",Datatype(new URI("http://www.w3.org/2001/XMLSchema#string")))))))),
 	  TableDisjunction(List(
 	    TriplesBlock(
 	      List(

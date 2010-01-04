@@ -2,7 +2,7 @@ package w3c.sw
 
 import org.scalatest.FunSuite
 import java.net.URI
-import w3c.sw.sql.{Sql,DatabaseDesc,Relation,RelationDesc,Attribute,Value,SQLDatatype,ForeignKey,Name}
+import w3c.sw.sql.{Sql,DatabaseDesc,Relation,RelationDesc,Attribute,Value,Datatype,ForeignKey,Name}
 import w3c.sw.sparql.Sparql
 import w3c.sw.rdb2rdf.{RDB2RDF,StemURI,
 		       PrimaryKey // nuke
@@ -13,9 +13,9 @@ class RDB2RDFTest extends FunSuite {
   val db:DatabaseDesc = DatabaseDesc(
     Map(Relation("Employee") -> 
 	RelationDesc(Option(Attribute("id")), 
-		     Map(Attribute("id") -> Value(SQLDatatype.INTEGER),
-			 Attribute("lastName") -> Value(SQLDatatype.STRING),
-			 Attribute("birthday") -> Value(SQLDatatype.DATE),
+		     Map(Attribute("id") -> Value(Datatype.INTEGER),
+			 Attribute("lastName") -> Value(Datatype.STRING),
+			 Attribute("birthday") -> Value(Datatype.DATE),
 			 Attribute("manager") -> ForeignKey(Relation("Employee"), Attribute("id")), 
 			 Attribute("address") -> ForeignKey(Relation("Address"),  Attribute("id"))))
       ))
@@ -23,11 +23,11 @@ class RDB2RDFTest extends FunSuite {
   val db2:DatabaseDesc = DatabaseDesc(
     Map(Relation("Employee") -> 
 	RelationDesc(Option(Attribute("id")), 
-		     Map(Attribute("id") -> Value(SQLDatatype.INTEGER),
-			 Attribute("lastName") -> Value(SQLDatatype.STRING),
-			 Attribute("birthday") -> Value(SQLDatatype.DATE),
-			 Attribute("manager") -> Value(SQLDatatype.INTEGER),
-			 Attribute("address") -> Value(SQLDatatype.INTEGER))),
+		     Map(Attribute("id") -> Value(Datatype.INTEGER),
+			 Attribute("lastName") -> Value(Datatype.STRING),
+			 Attribute("birthday") -> Value(Datatype.DATE),
+			 Attribute("manager") -> Value(Datatype.INTEGER),
+			 Attribute("address") -> Value(Datatype.INTEGER))),
 	Relation("Manage") -> 
 	RelationDesc(None,
 		     Map(Attribute("manager") -> ForeignKey(Relation("Employee"), Attribute("id")), 
