@@ -1,4 +1,4 @@
-package w3c.sw
+package w3c.sw.rdf
 
 import java.net.URI
 

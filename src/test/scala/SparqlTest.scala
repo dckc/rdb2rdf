@@ -1,5 +1,6 @@
-package w3c.sw
+package w3c.sw.sparql
 
+import w3c.sw.rdf._
 import org.scalatest.FunSuite
 import java.net.URI
 

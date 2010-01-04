@@ -1,4 +1,4 @@
-package w3c.sw
+package w3c.sw.util
 import scala.collection.immutable._
 
 class AddOrderedSet[A](list:List[A]) extends Set[A] {

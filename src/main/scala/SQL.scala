@@ -1,4 +1,5 @@
-package w3c.sw
+package w3c.sw.sql
+import  w3c.sw.util._
 
 import scala.util.parsing.combinator._
 

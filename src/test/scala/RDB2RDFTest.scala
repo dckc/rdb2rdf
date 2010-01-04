@@ -2,6 +2,11 @@ package w3c.sw
 
 import org.scalatest.FunSuite
 import java.net.URI
+import w3c.sw.sql.{Sql,DatabaseDesc,Relation,RelationDesc,Attribute,Value,SQLDatatype,ForeignKey,Name}
+import w3c.sw.sparql.Sparql
+import w3c.sw.rdb2rdf.{RDB2RDF,StemURI,
+		       PrimaryKey // nuke
+		     }
 
 class RDB2RDFTest extends FunSuite {
 
