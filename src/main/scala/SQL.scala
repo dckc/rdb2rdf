@@ -141,11 +141,11 @@ case class Sql() extends JavaTokenParsers {
     {
       case "SELECT" ~ attributes ~ "FROM" ~ tablesANDons ~ whereexpr => {
 	val t:Set[Expression] = tablesANDons._2
-	val onConjoints = tablesANDons._2.foldLeft(Set[Expression]())((set, ent) =>
-	  ent match {
+	val onConjoints:Set[Expression] = tablesANDons._2.foldLeft(Set[Expression]())((s, ent) =>
+	  s ++ {ent match {
 	    case ExprConjunction(l) => l
 	    case _ => Set(ent)
-	  })
+	  }})
 	val conjoints = whereexpr match {
 	  case Some(ExprConjunction(l)) => onConjoints ++ l
 	  case Some(x) => onConjoints + x
