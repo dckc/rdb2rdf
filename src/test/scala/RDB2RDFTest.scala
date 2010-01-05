@@ -481,7 +481,7 @@ SELECT ?empName ?managName ?grandManagName
 SELECT R_emp.lastName AS A_empName, R_opt1.A_managName AS A_managName, R_opt1.A_grandManagName AS A_grandManagName
        FROM Employee AS R_emp
             LEFT OUTER JOIN (
-    SELECT R_grandManager.lastName AS A_grandManagName, R_manager.lastName AS A_managName, R_mang.manages AS A_emp,
+    SELECT 1 AS _DISJOINT_, R_grandManager.lastName AS A_grandManagName, R_manager.lastName AS A_managName, R_mang.manages AS A_emp,
        R_grandMang.manager AS A_grandManager,
        R_mang.id AS A_mang,
        R_mang.manager AS A_manager,
@@ -526,12 +526,12 @@ SELECT ?empName ?managName ?grandManagName
 SELECT R_emp.lastName AS A_empName, R_opt1.A_managName AS A_managName, R_opt1.A_grandManagName AS A_grandManagName
        FROM Employee AS R_emp
             LEFT OUTER JOIN (
-    SELECT R_opt2.A_grandManagName AS A_grandManagName, R_manager.lastName AS A_managName, R_mang.manages AS A_emp, R_mang.manager AS A_manager,
-           R_mang.id AS A_mang, R_opt2.A_grandMang AS A_grandMang, R_opt2.A_grandManager AS A_grandManager
+    SELECT 1 AS _DISJOINT_, R_opt2.A_grandManagName AS A_grandManagName, R_manager.lastName AS A_managName, R_mang.manages AS A_emp,
+           R_mang.manager AS A_manager, R_mang.id AS A_mang, R_opt2.A_grandMang AS A_grandMang, R_opt2.A_grandManager AS A_grandManager
            FROM Manage AS R_mang
                 INNER JOIN Employee AS R_manager
                 LEFT OUTER JOIN (
-        SELECT R_grandManager.lastName AS A_grandManagName, R_grandMang.manages AS A_manager,
+        SELECT 2 AS _DISJOINT_, R_grandManager.lastName AS A_grandManagName, R_grandMang.manages AS A_manager,
                R_grandMang.id AS A_grandMang, R_grandMang.manager AS A_grandManager
                FROM Manage AS R_grandMang
                     INNER JOIN Employee AS R_grandManager
@@ -545,4 +545,61 @@ SELECT R_emp.lastName AS A_empName, R_opt1.A_managName AS A_managName, R_opt1.A_
 """).get
     assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false, false) === sqlSelect)
   }
+
+  test("transform equivOpt1") {
+    val sparqlParser = Sparql()
+    val sparqlSelect = sparqlParser.parseAll(sparqlParser.select, """
+PREFIX emplP: <http://hr.example/DB/Employee#>
+
+SELECT ?emp1Name ?emp2Name ?emp3Name
+ WHERE { ?emp1     emplP:lastName   ?emp1Name
+         OPTIONAL { ?emp1     emplP:birthday   ?birthday }
+         ?emp2     emplP:lastName   ?emp2Name
+         OPTIONAL { ?emp2     emplP:birthday   ?birthday }
+         ?emp3     emplP:lastName   ?emp3Name .
+         ?emp3     emplP:birthday   ?birthday .
+         ?emp4     emplP:lastName   ?emp4Name .
+         ?emp4     emplP:birthday   ?birthday
+         FILTER ( ?emp1Name < ?emp2Name && ?emp2Name < ?emp3Name && ?emp3Name < ?emp4Name) }
+""").get
+    val sqlParser = Sql()
+    val sqlSelect = sqlParser.parseAll(sqlParser.select, """
+SELECT R_emp1.lastName AS A_emp1Name, R_emp2.lastName AS A_emp2Name, R_emp3.lastName AS A_emp3Name
+  FROM Employee AS R_emp1
+       LEFT OUTER JOIN (
+			SELECT 1 AS _DISJOINT_,
+			       R_emp1.id AS A_emp1,
+			       R_emp1.birthday AS A_birthday
+			  FROM Employee AS R_emp1
+			 WHERE (R_emp1.id IS NOT NULL)
+			       AND (R_emp1.birthday IS NOT NULL)
+			) AS R_opt1 ON R_emp1.id=R_opt1.A_emp1
+       INNER JOIN Employee AS R_emp2 ON (R_emp1.lastName<R_emp2.lastName)
+				    AND (R_emp2.id IS NOT NULL)
+				    AND (R_emp2.lastName IS NOT NULL)
+       LEFT OUTER JOIN (
+			SELECT 3 AS _DISJOINT_,
+			       R_emp2.id AS A_emp2,
+			       R_emp2.birthday AS A_birthday
+			  FROM Employee AS R_emp2
+			 WHERE (R_emp2.id IS NOT NULL)
+			       AND (R_emp2.birthday IS NOT NULL)
+			) AS R_opt3 ON (R_emp2.id=R_opt3.A_emp2)
+				   AND ((R_opt1._DISJOINT_ IS NULL) OR (R_opt1.A_birthday=R_opt3.A_birthday))
+       INNER JOIN Employee AS R_emp3 ON ((R_opt1._DISJOINT_ IS NULL) OR (R_opt1.A_birthday=R_emp3.birthday))
+				    AND (R_emp2.lastName<R_emp3.lastName)
+				    AND (R_emp3.id IS NOT NULL)
+				    AND (R_emp3.lastName IS NOT NULL)
+       INNER JOIN Employee AS R_emp4 ON (R_emp3.lastName<R_emp4.lastName)
+				    AND ((R_opt1._DISJOINT_ IS NULL) OR (R_opt1.A_birthday=R_emp4.birthday))
+				    AND (R_emp4.id IS NOT NULL)
+				    AND (R_emp4.lastName IS NOT NULL)
+ WHERE (R_emp1.id IS NOT NULL)
+   AND (R_emp1.lastName IS NOT NULL)
+   AND (R_opt1.A_birthday IS NOT NULL)
+""").get
+    assert(RDB2RDF(db2, sparqlSelect, StemURI("http://hr.example/DB/"), PrimaryKey(Attribute(Name("id"))), false, false) === sqlSelect)
+  }
+
+
 }
